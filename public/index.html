@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maths par l'exemple</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@500&family=STIX+Two+Text:wght@500;700&display=swap">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">ℕ</span>Maths par l'exemple <small>Comprendre une notion en la testant</small></div>
+  <div class="who" id="who" hidden></div>
+</header>
+
+<!-- Connexion -->
+<div class="login-wrap" id="login" hidden>
+  <form class="card login" id="loginForm" autocomplete="off">
+    <h1>Connexion</h1>
+    <p>La première fois, choisis un pseudo (pas ton vrai nom) et un code secret de 4 chiffres. Retiens-les : ils te serviront à chaque connexion.</p>
+    <div class="field"><label for="lgCode">Code de la classe</label><input id="lgCode" required maxlength="10" style="text-transform:uppercase;font-family:var(--f-mono);letter-spacing:.1em" placeholder="ex. K7PM3X"><small>Ton professeur te le donne.</small></div>
+    <div class="field"><label for="lgPseudo">Pseudo</label><input id="lgPseudo" required maxlength="24" placeholder="ex. renard-bleu"></div>
+    <div class="field"><label for="lgPin">Code secret (4 chiffres)</label><input id="lgPin" class="pin" required inputmode="numeric" pattern="\d{4}" maxlength="4" placeholder="••••"></div>
+    <p class="err" id="lgErr" role="alert"></p>
+    <button class="btn" type="submit">Entrer</button>
+  </form>
+</div>
+
+<div class="loading" id="loading">Chargement…</div>
+
+<!-- Application -->
+<div class="shell" id="app" hidden>
+  <aside class="path" aria-label="Parcours">
+    <div class="notion-switch" id="notionSwitch"></div>
+    <div><div class="eyebrow" id="pTheme"></div><h2 id="pSousTheme"></h2></div>
+    <ul class="notions" id="pNotions"></ul>
+    <div class="nest" id="pSchema"></div>
+  </aside>
+  <main>
+    <div class="head">
+      <div class="eyebrow" id="hEyebrow"></div>
+      <h1 id="hTitre"></h1>
+      <p id="hIntro"></p>
+    </div>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="t-comprendre" data-view="comprendre">Comprendre</button>
+      <button class="tab" role="tab" id="t-entrainer" data-view="entrainer">S'entraîner</button>
+      <button class="tab" role="tab" id="t-jouer" data-view="jouer">Jouer</button>
+      <button class="tab" role="tab" id="t-plusloin" data-view="plusloin">Aller plus loin</button>
+      <button class="tab" role="tab" id="t-suivi" data-view="suivi">Mon suivi</button>
+    </div>
+    <section id="v-comprendre" class="view" style="display:grid;gap:18px"></section>
+    <section id="v-entrainer" class="view" hidden><div class="sheet" id="exercise"></div></section>
+    <section id="v-jouer" class="view" hidden style="display:grid;gap:18px">
+      <div class="games">
+        <button class="game-pick sel" data-game="g1"><span class="t">Attrape-les</span><span class="d" id="g1desc"></span><span class="best" id="best-g1"></span></button>
+        <button class="game-pick" data-game="g2"><span class="t">Trouve l'intrus</span><span class="d">4 nombres, un seul ne va pas avec les autres. 8 manches, plus tu es rapide, plus tu gagnes de points.</span><span class="best" id="best-g2"></span></button>
+      </div>
+      <div class="card" id="g1">
+        <div class="hud"><span><span class="k">Score</span><span class="v" id="g1score">0</span></span><span><span class="k">Vies</span><span class="v lives" id="g1lives">♥♥♥</span></span><span><span class="k">Temps</span><span class="v" id="g1time">30 s</span></span></div>
+        <div class="arena" id="arena"></div>
+        <div class="gmsg" id="g1msg" role="status"></div>
+      </div>
+      <div class="card" id="g2" hidden></div>
+    </section>
+    <section id="v-plusloin" class="view" hidden style="display:grid;gap:18px"></section>
+    <section id="v-suivi" class="view" hidden><div id="suivi" style="display:grid;gap:18px"></div></section>
+  </main>
+</div>
+<script type="module" src="/js/eleve.js"></script>
+</body>
+</html>
