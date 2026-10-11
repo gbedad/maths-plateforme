@@ -1,4 +1,3 @@
-{
 	// Configuration Cloudflare : un Worker qui sert les pages (public/) et l'API (/api/*), avec une base D1.
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "maths-plateforme",
@@ -18,11 +17,6 @@
 			// Remplace par l'identifiant donné par : npx wrangler d1 create maths-par-l-exemple
 			"database_id": "621defa4-5afc-44cd-b96c-5f1a652b24a2",
 			"migrations_dir": "migrations"
-		},
-		{
-			"binding": "maths_par_l_exemple",
-			"database_name": "maths-par-l-exemple",
-			"database_id": "621defa4-5afc-44cd-b96c-5f1a652b24a2"
 		}
 	],
 	"observability": {
