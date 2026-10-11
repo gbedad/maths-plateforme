@@ -373,9 +373,11 @@ function serie(root, questions, { source, titre, onFin }) {
       else if (!q.pourquoi.length) h += fb(true, null, q);
       else {
         h += '<div class="why-title">Bien. Mais pourquoi ?</div><div class="choices">' + S.order.map((idx, k) => {
-          const cls = S.phase === 'done' ? (idx === q.juste ? 'good' : idx === r.pick ? 'bad' : 'dim') : '';
-          return `<button class="choice ${cls}" data-p="${idx}" ${S.phase === 'done' ? 'disabled' : ''}><span class="l">${LET[k]})</span><span>${q.pourquoi[idx]}</span></button>`;
+          const cls = S.phase === 'done' ? (idx === q.juste ? 'good' : idx === r.pick ? 'bad' : 'dim') : idx === r.pick ? 'sel' : '';
+          return `<button class="choice ${cls}" data-p="${idx}" ${S.phase === 'done' ? 'disabled' : `aria-pressed="${idx === r.pick}"`}><span class="l">${LET[k]})</span><span>${q.pourquoi[idx]}</span></button>`;
         }).join('') + '</div>';
+        // Tant que l'élève n'a pas validé, il peut changer de justification
+        if (S.phase === 'q2') h += `<div class="next"><span class="mini">${r.pick === undefined ? 'Choisis une justification.' : 'Tu peux encore changer d\'avis.'}</span><button class="btn" id="validerP" ${r.pick === undefined ? 'disabled' : ''}>Valider ma justification</button></div>`;
         if (S.phase === 'done') h += fb(r.pick === q.juste, null, q);
       }
       if (S.phase === 'done') h += `<div class="next"><button class="btn" id="nextBtn">${S.i === S.seq.length - 1 ? 'Terminer' : 'Question suivante →'}</button></div>`;
@@ -391,7 +393,8 @@ function serie(root, questions, { source, titre, onFin }) {
       const ok1 = a.dataset.a === q.correct;
       S.cur = { a1: a.dataset.a, ok1 }; S.order = shuffle(q.pourquoi.map((_, k) => k));
       S.phase = ok1 && q.pourquoi.length ? 'q2' : 'done'; render();
-    } else if (p && S.phase === 'q2') { S.cur.pick = +p.dataset.p; S.phase = 'done'; render(); }
+    } else if (p && S.phase === 'q2') { S.cur.pick = +p.dataset.p; render(); $(`[data-p="${S.cur.pick}"]`, root)?.focus({ preventScroll: true }); }
+    else if (e.target.id === 'validerP' && S.phase === 'q2' && S.cur.pick !== undefined) { S.phase = 'done'; render(); }
     else if (e.target.id === 'nextBtn') {
       const r = S.cur, ok2 = q.pourquoi.length && r.ok1 ? r.pick === q.juste : null;
       const plein = r.ok1 && (ok2 === null || ok2);
