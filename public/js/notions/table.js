@@ -40,11 +40,15 @@ function tableHTML(t, sens, etat = {}, actif = null) {
     return `<div class="tl-row ${k === actif ? 'actif' : ''} ${e.ok === true ? 'juste' : e.ok === false ? 'faux' : ''}"><span class="tl-calc">${ecrire(sens, t, k)} =</span><span class="tl-box">${e.val ?? ''}</span></div>`;
   }).join('')}</div>`;
 }
+// Points regroupés par paquets de 5 (un espace après la 5e colonne / la 5e rangée) pour faciliter le comptage
 function pointsSVG(lignes, colonnes) {
-  const s = 22, w = colonnes * s + 10, h = lignes * s + 10;
-  let c = ''; for (let i = 0; i < lignes; i++) for (let j = 0; j < colonnes; j++) c += `<circle cx="${10 + j * s}" cy="${10 + i * s}" r="7" style="fill:var(--accent)"/>`;
+  const s = 22, g = 12, pos = (i) => 10 + i * s + (i >= 5 ? g : 0);
+  const w = pos(colonnes - 1) + 10, h = pos(lignes - 1) + 10;
+  let c = ''; for (let i = 0; i < lignes; i++) for (let j = 0; j < colonnes; j++) c += `<circle cx="${pos(j)}" cy="${pos(i)}" r="7" style="fill:var(--accent)"/>`;
   return `<svg viewBox="0 0 ${w} ${h}" style="width:${Math.min(w, 420)}px;max-width:100%;height:auto" role="img" aria-label="Nuage de points">${c}</svg>`;
 }
+// Durée d'affichage : 3 s minimum, puis environ 1 s de plus par tranche de 10 points (8 s au maximum)
+export const dureePoints = (nb) => Math.min(8, Math.max(3, Math.round(1.5 + nb / 10)));
 const nombre = (v) => { const s = String(v).trim(); return /^\d{1,4}$/.test(s) ? +s : NaN; };
 const chrono = () => { const d = Date.now(); return () => (Date.now() - d) / 1000; };
 const sec = (x) => x.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' s';
@@ -156,17 +160,18 @@ function explorerTable(t) {
       question();
     }
 
-    // Séquence 3 : nuages de points montrés 2 secondes
+    // Séquence 3 : nuages de points montrés quelques secondes (selon leur nombre)
     function sequence3() {
       const ks = shuffle([2, 3, 4, 5, 6, 7, 8, 9]);
       let n = 0;
       function question() {
-        const k = ks[n], lignes = Math.random() < 0.5 ? k : t, colonnes = lignes === k ? t : k;
-        root.innerHTML = `${intro(`Séquence 3 sur 3 · image ${n + 1} sur ${ks.length}`, "Regarde bien : l'image disparaît au bout de 2 secondes. Combien y a-t-il de points ?")}
-          <div class="card points-box"><div class="points">${pointsSVG(lignes, colonnes)}</div></div>
+        const k = ks[n], lignes = Math.random() < 0.5 ? k : t, colonnes = lignes === k ? t : k, duree = dureePoints(t * k);
+        root.innerHTML = `${intro(`Séquence 3 sur 3 · image ${n + 1} sur ${ks.length}`, `Regarde bien : l'image disparaît au bout de ${duree} secondes. Compte les rangées et les points par rangée. Combien y a-t-il de points ?`)}
+          <div class="card points-box"><div class="points">${pointsSVG(lignes, colonnes)}</div><div class="points-temps" aria-hidden="true"><i style="animation-duration:${duree}s"></i></div></div>
           <form class="calc-form" autocomplete="off" hidden><label for="ptsIn">Nombre de points :</label><input id="ptsIn" class="calc-in" inputmode="numeric" maxlength="4"><button class="btn">Valider</button></form><div id="s3fb" role="status"></div>`;
         setTimeout(() => {
           const p = $('.points', root); if (!p) return;
+          $('.points-temps', root)?.remove();
           p.innerHTML = '<div class="points-cache">?</div>';
           const f = $('.calc-form', root); f.hidden = false; $('#ptsIn').focus();
           f.onsubmit = (e) => {
@@ -179,7 +184,7 @@ function explorerTable(t) {
             $('#s3next').focus();
             $('#s3next').onclick = async () => { if (n < ks.length - 1) { n++; question(); } else fin(); };
           };
-        }, 2000);
+        }, duree * 1000);
       }
       question();
     }
