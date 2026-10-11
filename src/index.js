@@ -1,7 +1,7 @@
 // Maths par l'exemple : serveur (Cloudflare Worker + D1)
 // Les pages (public/) sont servies par Cloudflare ; ce Worker ne répond qu'aux routes /api/*.
 
-const NOTIONS_PAR_NIVEAU = { '4e': ['ecriture-scientifique'], '2nde': ['entiers-naturels'] };
+const NOTIONS_PAR_NIVEAU = { '6e': ['tables-multiplication'], '4e': ['ecriture-scientifique'], '2nde': ['entiers-naturels'] };
 const ETAPES = ['explorer', 'comprendre', 'ensavoirplus', 'jouer', 'entrainer', 'retenir', 'plusloin'];
 const REGLAGES_DEFAUT = (niveau) => ({
   etapes: Object.fromEntries(ETAPES.map((e) => [e, true])),
@@ -10,7 +10,7 @@ const REGLAGES_DEFAUT = (niveau) => ({
   notions: NOTIONS_PAR_NIVEAU[niveau] || ['entiers-naturels'],
 });
 // Badges de piège : générateur de la variante → nom du badge
-const BADGES_PIEGE = { 'valeur(0)': { nom: 'Démineur du zéro', desc: 'Maîtriser la question « 0 est-il un entier naturel ? »' }, 'sci_dix()': { nom: 'Démineur du dix', desc: 'Maîtriser le piège 10 × 10ⁿ' } };
+const BADGES_PIEGE = { 'valeur(0)': { nom: 'Démineur du zéro', desc: 'Maîtriser la question « 0 est-il un entier naturel ? »' }, 'sci_dix()': { nom: 'Démineur du dix', desc: 'Maîtriser le piège 10 × 10ⁿ' }, 'tm_zero()': { nom: 'Zéro partout', desc: 'Maîtriser « 0 est dans toutes les tables »' }, 'mul_inverse()': { nom: 'Œil de lynx', desc: 'Maîtriser le piège des chiffres inversés' } };
 const SESSION_JOURS = 30;
 
 export default {

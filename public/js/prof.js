@@ -5,8 +5,9 @@ import { ETAPES, NIVEAUX, COUL_NIV, ficheHTML } from './parcours.js';
 import { tirerQuestion } from './moteur.js';
 import naturels from './notions/entiers-naturels.js';
 import scientifique from './notions/ecriture-scientifique.js';
+import tables from './notions/tables-multiplication.js';
 
-const CATALOGUE = { [naturels.id]: naturels, [scientifique.id]: scientifique };
+const CATALOGUE = { [tables.id]: tables, [scientifique.id]: scientifique, [naturels.id]: naturels };
 const NIVEAUX_SCOL = ['6e', '5e', '4e', '3e', '2nde', '1re', 'Tle'];
 let CLASSES = [], VUE = 'classes', IMPORT = null;
 const pc = (x) => (x == null ? '—' : Math.round(x * 100) + ' %');
