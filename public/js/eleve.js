@@ -365,17 +365,28 @@ function serie(root, questions, { source, titre, onFin }) {
     let h = '';
     if (S.banner) { h += `<div class="reveal" role="status"><p>Deux erreurs : l'étape <b>Comprendre</b> est maintenant ouverte pour t'aider.</p><button class="btn sm ghost" data-go="comprendre">Aller voir</button></div>`; S.banner = false; }
     h += `<div class="ex-top">${steps()}<span class="mini">${esc(titre)}</span></div><div class="qnum">Question ${S.i + 1} sur ${S.seq.length}</div><div class="statement">${enonce(q)} ?</div>`;
-    if (S.phase === 'q1') h += '<div class="answers"><button class="btn" data-a="oui">Oui</button><button class="btn ghost" data-a="non">Non</button></div>';
+    // Oui / Non : l'élève choisit, peut changer d'avis, puis valide
+    const repBtn = (v, lab) => {
+      if (S.phase === 'q1') return `<button class="rep ${S.sel === v ? 'sel' : ''}" data-a="${v}" aria-pressed="${S.sel === v}">${lab}</button>`;
+      const r = S.cur, choisi = r.a1 === v, juste = q.correct === v;
+      const cls = choisi ? (r.ok1 ? 'good' : 'bad') : juste ? 'good-ghost' : 'dim';
+      const marque = choisi ? `<span class="rep-tag">${r.ok1 ? '✓' : '✗'} Ta réponse</span>` : juste ? '<span class="rep-tag">✓ Bonne réponse</span>' : '';
+      return `<button class="rep ${cls}" disabled>${lab}${marque}</button>`;
+    };
+    h += `<div class="answers">${repBtn('oui', 'Oui')}${repBtn('non', 'Non')}</div>`;
+    if (S.phase === 'q1') h += `<div class="next"><span class="mini">${S.sel ? 'Tu peux encore changer d\'avis.' : 'Choisis oui ou non.'}</span><button class="btn" id="validerA" ${S.sel ? '' : 'disabled'}>Valider ma réponse</button></div>`;
     else {
       const r = S.cur;
-      h += `<div class="answers"><button class="btn" disabled style="${r.a1 === 'oui' ? '' : 'opacity:.35'}">Oui</button><button class="btn ghost" disabled style="${r.a1 === 'non' ? '' : 'opacity:.35'}">Non</button></div>`;
       if (!r.ok1) h += fb(false, `La bonne réponse était « ${q.correct} ».`, q);
       else if (!q.pourquoi.length) h += fb(true, null, q);
       else {
         h += '<div class="why-title">Bien. Mais pourquoi ?</div><div class="choices">' + S.order.map((idx, k) => {
-          const cls = S.phase === 'done' ? (idx === q.juste ? 'good' : idx === r.pick ? 'bad' : 'dim') : '';
-          return `<button class="choice ${cls}" data-p="${idx}" ${S.phase === 'done' ? 'disabled' : ''}><span class="l">${LET[k]})</span><span>${q.pourquoi[idx]}</span></button>`;
+          const cls = S.phase === 'done' ? (idx === q.juste ? 'good' : idx === r.pick ? 'bad' : 'dim') : idx === r.pick ? 'sel' : '';
+          const marque = S.phase !== 'done' ? '' : idx === r.pick ? `<span class="rep-tag">${idx === q.juste ? '✓' : '✗'} Ta réponse</span>` : idx === q.juste ? '<span class="rep-tag">✓ Bonne réponse</span>' : '';
+          return `<button class="choice ${cls}" data-p="${idx}" ${S.phase === 'done' ? 'disabled' : `aria-pressed="${idx === r.pick}"`}><span class="l">${LET[k]})</span><span>${q.pourquoi[idx]}${marque}</span></button>`;
         }).join('') + '</div>';
+        // Tant que l'élève n'a pas validé, il peut changer de justification
+        if (S.phase === 'q2') h += `<div class="next"><span class="mini">${r.pick === undefined ? 'Choisis une justification.' : 'Tu peux encore changer d\'avis.'}</span><button class="btn" id="validerP" ${r.pick === undefined ? 'disabled' : ''}>Valider ma justification</button></div>`;
         if (S.phase === 'done') h += fb(r.pick === q.juste, null, q);
       }
       if (S.phase === 'done') h += `<div class="next"><button class="btn" id="nextBtn">${S.i === S.seq.length - 1 ? 'Terminer' : 'Question suivante →'}</button></div>`;
@@ -387,11 +398,13 @@ function serie(root, questions, { source, titre, onFin }) {
   const fb = (ok, extra, q) => `<div class="feedback" role="status"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div>${extra ? `<p>${esc(extra)}</p>` : ''}${q.texte ? `<div class="lab">Corrigé</div><p>${q.texte}</p>` : ''}</div>`;
   root.onclick = (e) => {
     const a = e.target.closest('[data-a]'), p = e.target.closest('[data-p]'), q = S.seq[S.i];
-    if (a && S.phase === 'q1') {
-      const ok1 = a.dataset.a === q.correct;
-      S.cur = { a1: a.dataset.a, ok1 }; S.order = shuffle(q.pourquoi.map((_, k) => k));
+    if (a && S.phase === 'q1') { S.sel = a.dataset.a; render(); $(`[data-a="${S.sel}"]`, root)?.focus({ preventScroll: true }); }
+    else if (e.target.id === 'validerA' && S.phase === 'q1' && S.sel) {
+      const ok1 = S.sel === q.correct;
+      S.cur = { a1: S.sel, ok1 }; S.sel = null; S.order = shuffle(q.pourquoi.map((_, k) => k));
       S.phase = ok1 && q.pourquoi.length ? 'q2' : 'done'; render();
-    } else if (p && S.phase === 'q2') { S.cur.pick = +p.dataset.p; S.phase = 'done'; render(); }
+    } else if (p && S.phase === 'q2') { S.cur.pick = +p.dataset.p; render(); $(`[data-p="${S.cur.pick}"]`, root)?.focus({ preventScroll: true }); }
+    else if (e.target.id === 'validerP' && S.phase === 'q2' && S.cur.pick !== undefined) { S.phase = 'done'; render(); }
     else if (e.target.id === 'nextBtn') {
       const r = S.cur, ok2 = q.pourquoi.length && r.ok1 ? r.pick === q.juste : null;
       const plein = r.ok1 && (ok2 === null || ok2);
