@@ -85,6 +85,7 @@ h3{font-family:var(--f-display);font-size:1.15rem;margin:0 0 10px;line-height:1.
 .tester input{flex:1 1 160px;min-width:0;font-family:var(--f-math);font-size:1.3rem;padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;background:var(--paper);color:var(--ink)}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;border-radius:10px;border:1.5px solid var(--accent);background:var(--accent);color:var(--surface);font-weight:700;cursor:pointer}
 .btn.ghost{background:transparent;color:var(--ink);border-color:var(--border)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
 .btn.ghost:hover{border-color:var(--ink-soft)}
 .btn:hover{filter:brightness(1.07)}
 .verdict{margin-top:14px;padding:12px 14px;border-radius:8px;border:1px solid var(--border);background:var(--paper)}
@@ -487,3 +488,15 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .rl.good{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
 .rl.bad{border-color:var(--ko);background:var(--ko-soft)}
 .chrono-big{font-family:var(--f-display);font-weight:800;font-size:1.5rem;font-variant-numeric:tabular-nums}
+
+/* Séquence 1 des tables : bilan du calcul et des explications */
+.choice.good-ghost{border-color:var(--ok);background:var(--ok-soft)}
+.choice.good-ghost .rep-tag{color:var(--ok)}
+.calc-bilan{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.calc-bilan .cb{display:inline-block;padding:6px 12px;border-radius:8px;font-weight:800;border:2px solid transparent}
+.calc-bilan .cb.good{background:var(--ok);color:var(--surface)}
+.calc-bilan .cb.bad{background:var(--ko);color:var(--surface)}
+.calc-bilan .cb.good-ghost{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
+.why-verdict{margin-top:10px;padding:10px 14px;border-radius:8px;font-weight:700;border-left:4px solid}
+.why-verdict.ok{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
+.why-verdict.ko{border-color:var(--ko);background:var(--ko-soft);color:var(--ko)}

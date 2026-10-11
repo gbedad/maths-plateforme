@@ -122,16 +122,35 @@ function explorerTable(t) {
           inp.disabled = true; $('.calc-form button', root).disabled = true;
           $('.tbl-t', root).outerHTML = tableHTML(t, sens, etat, k);
           const opts = shuffle(strategies(t, k, sens));
-          $('#s1fb').innerHTML = `<div class="feedback"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div><p>${ecrire(sens, t, k)} = <b>${t * k}</b></p></div>
-            <div class="why-title">Pourquoi ?</div><p class="mini" style="margin:-6px 0 8px">Choisis une seule réponse : celle qui explique le mieux comment ${ok ? 'tu as trouvé' : 'on trouve'} le résultat.</p>
-            <div class="choices">${opts.map((o, j) => `<button class="choice" data-o="${j}"><span class="l">${'abcd'[j]})</span><span>${esc(o.texte)}</span></button>`).join('')}</div><div id="s1why"></div>`;
+          const bilanCalc = ok
+            ? `<div class="calc-bilan"><span class="cb good">✓ ${ecrire(sens, t, k)} = ${v}</span></div>`
+            : `<div class="calc-bilan"><span class="cb bad">✗ Ta réponse : ${v}</span><span class="cb good-ghost">✓ ${ecrire(sens, t, k)} = ${t * k}</span></div>`;
+          $('#s1fb').innerHTML = `<div class="feedback"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div>${bilanCalc}</div>
+            <div class="why-title">Pourquoi ?</div><p class="mini" style="margin:-6px 0 8px">Choisis une seule réponse : celle qui explique le mieux comment ${ok ? 'tu as trouvé' : 'on trouve'} le résultat. Tu peux changer d'avis avant de valider.</p>
+            <div class="choices">${opts.map((o, j) => `<button class="choice" data-o="${j}" aria-pressed="false"><span class="l">${'abcd'[j]})</span><span>${esc(o.texte)}</span></button>`).join('')}</div>
+            <div class="next" id="s1valBox"><span class="mini" id="s1valMsg">Choisis une explication.</span><button class="btn" id="s1val" disabled>Valider mon explication</button></div><div id="s1why"></div>`;
+          let pick = null;
           $('#s1fb').onclick = (ev) => {
-            const b = ev.target.closest('[data-o]'); if (!b) return;
-            const o = opts[+b.dataset.o];
-            $$('#s1fb .choice').forEach((c, j) => { c.disabled = true; const cl = j === +b.dataset.o ? (o.ok ? 'good' : 'bad') : opts[j].ok ? '' : 'dim'; if (cl) c.classList.add(cl); });
+            const b = ev.target.closest('[data-o]');
+            if (b && !b.disabled) {
+              pick = +b.dataset.o;
+              $$('#s1fb .choice').forEach((c, j) => { c.classList.toggle('sel', j === pick); c.setAttribute('aria-pressed', String(j === pick)); });
+              $('#s1val').disabled = false; $('#s1valMsg').textContent = "Tu peux encore changer d'avis.";
+              return;
+            }
+            if (ev.target.id !== 's1val' || pick === null) return;
+            const o = opts[pick];
+            $('#s1valBox').remove();
+            $$('#s1fb .choice').forEach((c, j) => {
+              c.disabled = true; c.classList.remove('sel'); c.removeAttribute('aria-pressed');
+              const choisi = j === pick, bon = opts[j].ok;
+              c.classList.add(choisi ? (o.ok ? 'good' : 'bad') : bon ? 'good-ghost' : 'dim');
+              const tag = choisi ? `${o.ok ? '✓' : '✗'} Ton explication` : bon ? '✓ Aussi juste' : '';
+              if (tag) c.lastElementChild.insertAdjacentHTML('beforeend', `<span class="rep-tag">${tag}</span>`);
+            });
             if (o.ok) strats.push(o.cat);
             ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: o.ok, choix: o.texte, juste: o.ok ? o.texte : (opts.find((x) => x.ok) || {}).texte, corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
-            $('#s1why').innerHTML = `<p class="mini" style="margin-top:8px">${o.ok ? '✓ C’est une bonne façon de trouver le résultat.' : '✗ ' + esc(o.expl)}</p><div class="next"><button class="btn" id="s1next">${n === ORDRE_EXPLORER.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
+            $('#s1why').innerHTML = `<div class="why-verdict ${o.ok ? 'ok' : 'ko'}">${o.ok ? '✓ C’est une bonne façon de trouver le résultat.' : '✗ ' + esc(o.expl)}</div><div class="next"><button class="btn" id="s1next">${n === ORDRE_EXPLORER.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
             $('#s1next').focus();
             $('#s1next').onclick = async () => { if (n < ORDRE_EXPLORER.length - 1) { n++; question(); } else { const freq = {}; strats.forEach((c) => (freq[c] = (freq[c] || 0) + 1)); await sauver({ phase: Math.max(d.phase || 1, 2), strategies: freq }); continuer(); } };
           };
