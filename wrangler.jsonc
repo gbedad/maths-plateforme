@@ -1,3 +1,4 @@
+{
 	// Configuration Cloudflare : un Worker qui sert les pages (public/) et l'API (/api/*), avec une base D1.
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "maths-plateforme",
