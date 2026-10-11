@@ -6,8 +6,9 @@ import { tirerQuestion } from './moteur.js';
 import naturels from './notions/entiers-naturels.js';
 import scientifique from './notions/ecriture-scientifique.js';
 import tables from './notions/tables-multiplication.js';
+import { TABLES } from './notions/table.js';
 
-const CATALOGUE = { [tables.id]: tables, [scientifique.id]: scientifique, [naturels.id]: naturels };
+const CATALOGUE = { ...Object.fromEntries(TABLES.map((x) => [x.id, x])), [tables.id]: tables, [scientifique.id]: scientifique, [naturels.id]: naturels };
 const NIVEAUX_SCOL = ['6e', '5e', '4e', '3e', '2nde', '1re', 'Tle'];
 let CLASSES = [], VUE = 'classes', IMPORT = null;
 const pc = (x) => (x == null ? '—' : Math.round(x * 100) + ' %');
@@ -72,7 +73,7 @@ async function vueClasse(id) {
   let d, bq; try { [d, bq] = await Promise.all([api('/api/prof/classes/' + id), banque()]); } catch (e) { $('#main').innerHTML = `<div class="card">${esc(e.message)}</div>`; return; }
   const c = d.classe, r = c.reglages, o = d.objectif;
   const notions = r.notions.filter((n) => CATALOGUE[n]);
-  const vars = (n) => bq.filter((x) => x.notion === n).flatMap((x) => x.variantes);
+  const vars = (n) => { const v = bq.filter((x) => x.notion === n).flatMap((x) => x.variantes); return v.length ? v : (CATALOGUE[n].competences || []); };
   const etapesFaites = (eid, n) => { const p = (d.etapes[eid] || {})[n] || {}; return { faites: ETAPES.filter((e) => p[e.id]?.fait).length, etoiles: ETAPES.reduce((a, e) => a + (p[e.id]?.etoiles || 0), 0) }; };
   const grilles = notions.map((n) => {
     const vs = vars(n); if (!vs.length || !d.eleves.length) return '';

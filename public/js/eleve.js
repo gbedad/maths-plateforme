@@ -5,8 +5,9 @@ import { ETAPES, REGLES_ETOILES, NIVEAUX, COUL_NIV, REGLE_NIV, etatEtapes, etoil
 import naturels from './notions/entiers-naturels.js';
 import scientifique from './notions/ecriture-scientifique.js';
 import tables from './notions/tables-multiplication.js';
+import { TABLES } from './notions/table.js';
 
-const CATALOGUE = { [tables.id]: tables, [scientifique.id]: scientifique, [naturels.id]: naturels };
+const CATALOGUE = { ...Object.fromEntries(TABLES.map((x) => [x.id, x])), [tables.id]: tables, [scientifique.id]: scientifique, [naturels.id]: naturels };
 const LET = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const JOURS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 let ME = null, N = null, DISPO = [], EXOS = [], PROG = {}, MAIT = {}, REVEALED = {};
@@ -49,7 +50,15 @@ const progDe = (id) => Object.fromEntries(ME.progression.filter((p) => p.notion 
 const etatDe = (id, reveles = {}) => etatEtapes(progDe(id), ME.classe.reglages.etapes, reveles);
 function notionOuverte(id) { const i = DISPO.indexOf(id); return i <= 0 || etatDe(DISPO[i - 1]).termine; }
 const etat = () => etatDe(N.id, REVEALED);
-const variantes = () => EXOS.flatMap((x) => x.variantes.map((v) => ({ ...v, exo: x })));
+const variantes = () => (EXOS.length ? EXOS.flatMap((x) => x.variantes.map((v) => ({ ...v, exo: x }))) : (N.competences || []));
+// Contexte donné aux notions qui définissent leurs propres étapes (ex. tables de multiplication)
+const ctx = () => ({
+  prog: PROG, maitrise: MAIT, toast, suite, etoiles: etoilesHTML,
+  sauver: (etape, data) => sauverEtape(etape, data),
+  recharger: async () => { await recharger(); return MAIT; },
+  reponses: (source, items) => api('/api/eleve/reponses', { method: 'POST', body: { notion: N.id, source, items } }).catch(() => toast("Ta réponse n'a pas pu être enregistrée.")),
+  finPartie: (jeu, score) => finPartie(jeu, score),
+});
 
 function choisirNotion(id) {
   stopJeux(); REVEALED = {};
@@ -121,7 +130,7 @@ function ouvrirEtape(id) {
   if (!e || !e.ouvert) { toast('Cette étape n’est pas encore ouverte.'); return; }
   stopJeux();
   const idx = etat().etapes.filter((x) => x.visible).findIndex((x) => x.id === id) + 1;
-  const regles = REGLES_ETOILES[id];
+  const regles = (N.reglesEtoiles || {})[id] || REGLES_ETOILES[id];
   main().innerHTML = `
     <div class="etape-head"><button class="linkbtn" data-go="parcours">← Parcours</button>
       <div class="eyebrow">Étape ${idx} · ${N.titreCourt}</div>
@@ -148,6 +157,7 @@ function lirePhrase(root, parts) {
 
 /* ---------- 1. Explorer ---------- */
 function explorer(root) {
+  if (N.explorerCustom) return N.explorerCustom(root, ctx());
   const X = N.explorer, seuil = (ME.config[N.id] || {}).seuilExplorer || 6, d = PROG.explorer?.donnees || {};
   let justes = 0, cur = null;
   const fam = { oui: [...X.exemplesOui], non: [...X.exemplesNon] };
@@ -244,20 +254,27 @@ function ensavoirplus(root) {
 const G1 = { running: false }, G2 = {};
 function stopJeux() { clearInterval(G1.spawn); clearInterval(G1.timer); G1.running = false; clearInterval(G2.tick); }
 function jouer(root) {
+  const extras = N.jeuxExtra || [];
   root.innerHTML = `
     <div class="games">
       <button class="game-pick sel" data-game="g1"><span class="t">Attrape-les</span><span class="d">${esc(N.jeu.description1)} 30 secondes, 3 vies.</span></button>
-      <button class="game-pick" data-game="g2"><span class="t">Trouve l'intrus</span><span class="d">4 nombres, un seul ne va pas avec les autres. 8 manches.</span></button>
+      ${N.sansIntrus ? '' : `<button class="game-pick" data-game="g2"><span class="t">Trouve l'intrus</span><span class="d">4 nombres, un seul ne va pas avec les autres. 8 manches.</span></button>`}
+      ${extras.map((x) => `<button class="game-pick" data-game="x-${x.id}"><span class="t">${esc(x.titre)}</span><span class="d">${esc(x.desc)}</span></button>`).join('')}
     </div>
     <div class="card" id="g1"><div class="hud"><span><span class="k">Vies</span><span class="v lives" id="g1lives">♥♥♥</span></span><span><span class="k">Temps</span><span class="v" id="g1time">30 s</span></span></div>
       <div class="arena" id="arena"></div><div class="gmsg" id="g1msg" role="status"></div></div>
     <div class="card" id="g2" hidden></div>
+    ${extras.map((x) => `<div class="card jeu-x" id="x-${x.id}" hidden></div>`).join('')}
     <div class="row" id="jSuite">${PROG.jouer?.fait ? suite('jouer') : ''}</div>`;
   $('.games', root).addEventListener('click', (e) => {
     const b = e.target.closest('.game-pick'); if (!b) return;
     $$('.game-pick', root).forEach((x) => x.classList.toggle('sel', x === b));
-    stopJeux(); $('#g1').hidden = b.dataset.game !== 'g1'; $('#g2').hidden = b.dataset.game !== 'g2';
-    if (b.dataset.game === 'g1') g1Intro(); else g2Intro();
+    stopJeux();
+    const g = b.dataset.game;
+    $('#g1').hidden = g !== 'g1'; $('#g2').hidden = g !== 'g2';
+    $$('.jeu-x', root).forEach((c) => { clearInterval(c._tick); c.hidden = c.id !== g; });
+    if (g === 'g1') g1Intro(); else if (g === 'g2') g2Intro();
+    else { const x = extras.find((j) => 'x-' + j.id === g); x.render($('#' + g), ctx()); }
   });
   $('#g1').addEventListener('click', (e) => { if (e.target.id === 'g1go') g1Start(); });
   $('#g2').addEventListener('click', (e) => {
@@ -404,6 +421,7 @@ const recapHTML = (res, exo) => `<div class="recap">${res.map((r) => `<div><span
 
 /* ---------- 5. S'entraîner ---------- */
 function entrainer(root) {
+  if (N.entrainerCustom) return N.entrainerCustom(root, ctx());
   if (!EXOS.length) { root.innerHTML = '<div class="card">Aucun exercice n\'est encore disponible. Ton professeur doit importer la banque d\'exercices.</div>'; return; }
   const lancer = (exo) => {
     let seq; try { seq = tirerSerie(exo).map((q) => ({ ...q, exo })); } catch (e) { root.innerHTML = `<p class="err">${esc(e.message)}</p>`; return; }
@@ -443,17 +461,19 @@ async function retenir(root) {
     let choix = dues.length ? dues : vues.filter((v) => MAIT[v.id].niveau < 4);
     if (!choix.length) choix = vues;
     choix = shuffle(choix).sort((a, b) => MAIT[a.id].niveau - MAIT[b.id].niveau).slice(0, 5);
-    const seq = choix.map((v) => ({ ...tirerQuestion(v), exo: v.exo }));
     $('#revision').innerHTML = '<div id="serieR"></div>';
-    serie($('#serieR'), seq, { source: 'retenir', titre: 'Révision', onFin: async (res) => {
+    const finRevision = async (res, recap) => {
       await recharger();
       const total = vs.length, ancrees = vs.filter((v) => (MAIT[v.id] || {}).niveau >= 4).length;
       const et = 1 + (ancrees >= 1 ? 1 : 0) + (ancrees >= Math.ceil(total / 2) ? 1 : 0);
       await sauverEtape('retenir', { fait: true, etoiles: et });
-      $('#revision').innerHTML = `<div class="qnum">Révision terminée</div><div class="final-stars">${etoilesHTML(PROG.retenir?.etoiles || et)}</div><p>${ancrees} compétence${ancrees > 1 ? 's' : ''} ancrée${ancrees > 1 ? 's' : ''} sur ${total}.</p>${recapHTML(res, res.length ? seq[0].exo : EXOS[0])}`;
+      $('#revision').innerHTML = `<div class="qnum">Révision terminée</div><div class="final-stars">${etoilesHTML(PROG.retenir?.etoiles || et)}</div><p>${ancrees} compétence${ancrees > 1 ? 's' : ''} ancrée${ancrees > 1 ? 's' : ''} sur ${total}.</p>${recap(res)}`;
       $('#retSuite').innerHTML = suite('retenir');
       chargerFiche();
-    } });
+    };
+    if (N.reviser) return N.reviser($('#serieR'), choix.map((v) => v.id), ctx(), (res) => finRevision(res, (r) => `<div class="recap">${r.map((x) => `<div><span class="dot ${x.plein ? 'ok' : 'ko'}"></span><span class="m">${esc(x.html)}</span><span></span></div>`).join('')}</div>`));
+    const seq = choix.map((v) => ({ ...tirerQuestion(v), exo: v.exo }));
+    serie($('#serieR'), seq, { source: 'retenir', titre: 'Révision', onFin: (res) => finRevision(res, (r) => recapHTML(r, seq[0].exo)) });
   });
   const chargerFiche = async () => {
     try { const f = await api('/api/eleve/fiche?notion=' + encodeURIComponent(N.id)); $('#fiche').innerHTML = `<h2 class="fiche-titre">Ma fiche mémo</h2>${ficheHTML(f, N.definition)}`; }
