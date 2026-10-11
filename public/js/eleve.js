@@ -4,8 +4,9 @@ import { tirerSerie, tirerQuestion } from './moteur.js';
 import { ETAPES, REGLES_ETOILES, NIVEAUX, COUL_NIV, REGLE_NIV, etatEtapes, etoilesHTML, ficheHTML, dansJours } from './parcours.js';
 import naturels from './notions/entiers-naturels.js';
 import scientifique from './notions/ecriture-scientifique.js';
+import tables from './notions/tables-multiplication.js';
 
-const CATALOGUE = { [naturels.id]: naturels, [scientifique.id]: scientifique };
+const CATALOGUE = { [tables.id]: tables, [scientifique.id]: scientifique, [naturels.id]: naturels };
 const LET = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const JOURS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
 let ME = null, N = null, DISPO = [], EXOS = [], PROG = {}, MAIT = {}, REVEALED = {};
@@ -167,7 +168,7 @@ function explorer(root) {
         <div class="answers"><button class="btn" data-f="oui">${X.oui}</button><button class="btn ghost" data-f="non">${X.non}</button></div>
         <p class="feedback-line" id="fb" role="status"></p><p class="mini">${indice()}</p></div>`}`;
   }
-  function suivant() { let it; do { it = N.jeu.gen(); } while ([...fam.oui, ...fam.non].includes(it.s.replace(/-/g, '−')) || [...fam.oui, ...fam.non].includes(it.s)); cur = it; render(); }
+  function suivant() { let it; do { it = (X.gen || N.jeu.gen)(); } while ([...fam.oui, ...fam.non].includes(it.s.replace(/-/g, '−')) || [...fam.oui, ...fam.non].includes(it.s)); cur = it; render(); }
   root.onclick = async (e) => {
     const f = e.target.closest('[data-f]');
     if (f && cur && !cur.repondu) {
@@ -206,6 +207,7 @@ function comprendre(root) {
     <div id="modContenu" style="display:grid;gap:18px"></div>
     <div class="row" id="compSuite"></div>`;
   N.comprendre($('#modContenu'));
+  $('#modContenu .sheet.def')?.remove(); // la définition est déjà affichée en haut
   const maj = () => {
     const r = Math.max(0, 3 - exemples.length);
     $('#testHint').textContent = r ? `Teste ${r === 3 ? 'au moins 3 nombres' : `encore ${r} nombre${r > 1 ? 's' : ''}`} de ton choix : ils iront dans ta fiche mémo.` : 'Tes exemples sont dans ta fiche mémo. Tu peux continuer.';
@@ -340,7 +342,7 @@ function g2End() {
 function serie(root, questions, { source, titre, onFin }) {
   const S = { seq: questions, i: 0, res: [], phase: 'q1', err: 0 };
   const steps = () => `<div class="steps" aria-hidden="true">${S.seq.map((q, k) => { const r = S.res[k]; let c = ''; if (r) c = r.plein ? 'ok' : r.ok1 ? 'half' : 'ko'; else if (k === S.i) c = 'cur'; return `<i class="${c}"></i>`; }).join('')}</div>`;
-  const enonce = (q) => esc(q.exo.enonce).replace('{}', `<span class="num">${q.html}</span>`);
+  const enonce = (q) => enonceHTML(q.exo.enonce, q);
   function render() {
     const q = S.seq[S.i];
     let h = '';
@@ -376,9 +378,9 @@ function serie(root, questions, { source, titre, onFin }) {
     else if (e.target.id === 'nextBtn') {
       const r = S.cur, ok2 = q.pourquoi.length && r.ok1 ? r.pick === q.juste : null;
       const plein = r.ok1 && (ok2 === null || ok2);
-      S.res.push({ ok1: r.ok1, ok2, plein, html: q.html, aPourquoi: !!q.pourquoi.length });
+      S.res.push({ ok1: r.ok1, ok2, plein, html: q.html, vars: q.vars, exo: q.exo, aPourquoi: !!q.pourquoi.length });
       api('/api/eleve/reponses', { method: 'POST', body: { notion: N.id, source, items: [{
-        variante: q.variante, libelle: q.libelle, question: htmlToTxt(q.html), ok1: r.ok1, ok2,
+        variante: q.variante, libelle: q.libelle, question: htmlToTxt(enonceHTML(q.exo.enonce, q)), ok1: r.ok1, ok2,
         choix: r.ok1 ? (q.pourquoi.length ? htmlToTxt(q.pourquoi[r.pick]) : r.a1) : r.a1,
         juste: q.pourquoi.length ? htmlToTxt(q.pourquoi[q.juste]) : '', corrige: htmlToTxt(q.texte),
       }] } }).catch(() => toast("Ta réponse n'a pas pu être enregistrée."));
@@ -397,7 +399,8 @@ function serie(root, questions, { source, titre, onFin }) {
   };
   render();
 }
-const recapHTML = (res, exo) => `<div class="recap">${res.map((r) => `<div><span class="dot ${r.plein ? 'ok' : r.ok1 ? 'half' : 'ko'}"></span><span>${esc(exo.enonce).replace('{}', `<span class="m">${r.html}</span>`)}</span><span class="mini">${r.plein ? 'juste et justifié' : r.ok1 ? 'juste, mal justifié' : 'à revoir'}</span></div>`).join('')}</div>`;
+const enonceHTML = (enonce, q, cls = 'num') => esc(enonce).replace(/\{(\w*)\}/g, (_, k) => (k === '' ? `<span class="${cls}">${q.html}</span>` : esc(q.vars?.[k] ?? '')));
+const recapHTML = (res, exo) => `<div class="recap">${res.map((r) => `<div><span class="dot ${r.plein ? 'ok' : r.ok1 ? 'half' : 'ko'}"></span><span>${enonceHTML(r.exo?.enonce || exo.enonce, r, 'm')}</span><span class="mini">${r.plein ? 'juste et justifié' : r.ok1 ? 'juste, mal justifié' : 'à revoir'}</span></div>`).join('')}</div>`;
 
 /* ---------- 5. S'entraîner ---------- */
 function entrainer(root) {
@@ -419,7 +422,7 @@ function entrainer(root) {
     } });
   };
   if (EXOS.length === 1) return lancer(EXOS[0]);
-  root.innerHTML = `<div class="card"><h3>Choisis un exercice</h3><div class="choices">${EXOS.map((x, i) => `<button class="choice" data-exo="${i}"><span class="l">${x.numero}</span><span>${esc(x.enonce.replace('{}', '…'))}</span></button>`).join('')}</div></div>`;
+  root.innerHTML = `<div class="card"><h3>Choisis un exercice</h3><div class="choices">${EXOS.map((x, i) => `<button class="choice" data-exo="${i}"><span class="l">${x.numero}</span><span>${esc(x.enonce.replace(/\{\w*\}/g, '…'))}</span></button>`).join('')}</div></div>`;
   root.onclick = (e) => { const b = e.target.closest('[data-exo]'); if (b) { root.onclick = null; lancer(EXOS[+b.dataset.exo]); } };
 }
 

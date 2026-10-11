@@ -103,7 +103,11 @@ Deux façons :
 - **Depuis le site** : Espace enseignant → Banque d'exercices → Importer un fichier Excel. Un aperçu s'affiche, avec les avertissements (doublons, réponse juste introuvable…), avant l'enregistrement.
 - **En ligne de commande** : `npm run seed:remote`, qui lit `data/banque-exercices.xlsx`.
 
-Importer un fichier remplace les exercices des notions qu'il contient. Les autres notions ne changent pas.
+Importer un fichier remplace les exercices des notions qu'il contient.
+
+**Créer un exercice sans toucher au code** : dans la colonne « Générateur », utilise les générateurs génériques (paramètres séparés par « ; ») :
+`liste(12; 18; 2,5; -3; 7/2)`, `entier(1; 100)`, `entier(1; 100; pair)`, `entier(1; 100; multiple de 6)`, `entier(1; 100; pas multiple de 6)`, `decimal(0; 10; 2)`, `fraction(1; 40)`, `fraction(1; 40; entière)`.
+Leurs repères (`{m}`, `{q}`, `{bas}`, `{haut}`, `{num}`…) sont listés dans l'onglet « Générateurs » de l'Excel. Les autres notions ne changent pas.
 
 ## Ajouter une notion
 

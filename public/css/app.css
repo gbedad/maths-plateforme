@@ -422,3 +422,13 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.84rem}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:14px;height:14px;border-radius:4px;display:inline-block}
+/* Table de Pythagore */
+.pyth{display:grid;gap:3px;min-width:420px;max-width:640px}
+.pyth.petit{max-width:460px;min-width:320px}
+.pyth .ph{display:grid;place-items:center;font-family:var(--f-math);font-weight:700;color:var(--ink-soft);font-size:.95rem;padding:4px 0}
+.pyth .pc{font:inherit;font-family:var(--f-math);font-size:.95rem;padding:6px 0;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);cursor:pointer;font-variant-numeric:tabular-nums}
+.pyth .pc:hover{border-color:var(--accent)}
+.pyth .pc.lit{background:var(--accent-soft)}
+.pyth .pc.sel{background:var(--accent);color:var(--surface);border-color:var(--accent);font-weight:700}
+.pyth .pc.dup{opacity:.25}
+.tester input.t-tb{flex:0 0 4.5em}
