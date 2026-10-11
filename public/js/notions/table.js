@@ -97,7 +97,11 @@ function explorerTable(t) {
       root.innerHTML = `${intro('Avant de commencer', `Pour apprendre la table de ${t}, que préfères-tu écrire ?`)}
         <div class="answers"><button class="btn ghost big-choice" data-sens="tk">${t} × ${ex}</button><button class="btn ghost big-choice" data-sens="kt">${ex} × ${t}</button></div>
         <p class="mini">Ce choix sera gardé pendant tout le parcours. Les deux donnent le même résultat.</p>`;
-      root.onclick = async (e) => { const b = e.target.closest('[data-sens]'); if (!b) return; root.onclick = null; await sauver({ sens: b.dataset.sens, phase: 1 }); sequence1(); };
+      root.onclick = async (e) => {
+        const b = e.target.closest('[data-sens]'); if (!b) return; root.onclick = null;
+        if (d.phase >= 2) { await sauver({ sens: b.dataset.sens }); if (d.phase === 4) fin(); else reprise(); return; }
+        await sauver({ sens: b.dataset.sens, phase: 1 }); sequence1();
+      };
     }
 
     // Séquence 1 : reconstituer la table dans l'ordre imposé, avec un « pourquoi » à chaque question
@@ -118,18 +122,37 @@ function explorerTable(t) {
           inp.disabled = true; $('.calc-form button', root).disabled = true;
           $('.tbl-t', root).outerHTML = tableHTML(t, sens, etat, k);
           const opts = shuffle(strategies(t, k, sens));
-          $('#s1fb').innerHTML = `<div class="feedback"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div><p>${ecrire(sens, t, k)} = <b>${t * k}</b></p></div>
-            <div class="why-title">Pourquoi ?</div><p class="mini" style="margin:-6px 0 8px">Choisis une seule réponse : celle qui explique le mieux comment ${ok ? 'tu as trouvé' : 'on trouve'} le résultat.</p>
-            <div class="choices">${opts.map((o, j) => `<button class="choice" data-o="${j}"><span class="l">${'abcd'[j]})</span><span>${esc(o.texte)}</span></button>`).join('')}</div><div id="s1why"></div>`;
+          const bilanCalc = ok
+            ? `<div class="calc-bilan"><span class="cb good">✓ ${ecrire(sens, t, k)} = ${v}</span></div>`
+            : `<div class="calc-bilan"><span class="cb bad">✗ Ta réponse : ${v}</span><span class="cb good-ghost">✓ ${ecrire(sens, t, k)} = ${t * k}</span></div>`;
+          $('#s1fb').innerHTML = `<div class="feedback"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div>${bilanCalc}</div>
+            <div class="why-title">Pourquoi ?</div><p class="mini" style="margin:-6px 0 8px">Choisis une seule réponse : celle qui explique le mieux comment ${ok ? 'tu as trouvé' : 'on trouve'} le résultat. Tu peux changer d'avis avant de valider.</p>
+            <div class="choices">${opts.map((o, j) => `<button class="choice" data-o="${j}" aria-pressed="false"><span class="l">${'abcd'[j]})</span><span>${esc(o.texte)}</span></button>`).join('')}</div>
+            <div class="next" id="s1valBox"><span class="mini" id="s1valMsg">Choisis une explication.</span><button class="btn" id="s1val" disabled>Valider mon explication</button></div><div id="s1why"></div>`;
+          let pick = null;
           $('#s1fb').onclick = (ev) => {
-            const b = ev.target.closest('[data-o]'); if (!b) return;
-            const o = opts[+b.dataset.o];
-            $$('#s1fb .choice').forEach((c, j) => { c.disabled = true; const cl = j === +b.dataset.o ? (o.ok ? 'good' : 'bad') : opts[j].ok ? '' : 'dim'; if (cl) c.classList.add(cl); });
+            const b = ev.target.closest('[data-o]');
+            if (b && !b.disabled) {
+              pick = +b.dataset.o;
+              $$('#s1fb .choice').forEach((c, j) => { c.classList.toggle('sel', j === pick); c.setAttribute('aria-pressed', String(j === pick)); });
+              $('#s1val').disabled = false; $('#s1valMsg').textContent = "Tu peux encore changer d'avis.";
+              return;
+            }
+            if (ev.target.id !== 's1val' || pick === null) return;
+            const o = opts[pick];
+            $('#s1valBox').remove();
+            $$('#s1fb .choice').forEach((c, j) => {
+              c.disabled = true; c.classList.remove('sel'); c.removeAttribute('aria-pressed');
+              const choisi = j === pick, bon = opts[j].ok;
+              c.classList.add(choisi ? (o.ok ? 'good' : 'bad') : bon ? 'good-ghost' : 'dim');
+              const tag = choisi ? `${o.ok ? '✓' : '✗'} Ton explication` : bon ? '✓ Aussi juste' : '';
+              if (tag) c.lastElementChild.insertAdjacentHTML('beforeend', `<span class="rep-tag">${tag}</span>`);
+            });
             if (o.ok) strats.push(o.cat);
             ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: o.ok, choix: o.texte, juste: o.ok ? o.texte : (opts.find((x) => x.ok) || {}).texte, corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
-            $('#s1why').innerHTML = `<p class="mini" style="margin-top:8px">${o.ok ? '✓ C’est une bonne façon de trouver le résultat.' : '✗ ' + esc(o.expl)}</p><div class="next"><button class="btn" id="s1next">${n === ORDRE_EXPLORER.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
+            $('#s1why').innerHTML = `<div class="why-verdict ${o.ok ? 'ok' : 'ko'}">${o.ok ? '✓ C’est une bonne façon de trouver le résultat.' : '✗ ' + esc(o.expl)}</div><div class="next"><button class="btn" id="s1next">${n === ORDRE_EXPLORER.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
             $('#s1next').focus();
-            $('#s1next').onclick = async () => { if (n < ORDRE_EXPLORER.length - 1) { n++; question(); } else { const freq = {}; strats.forEach((c) => (freq[c] = (freq[c] || 0) + 1)); await sauver({ phase: 2, strategies: freq }); sequence2(); } };
+            $('#s1next').onclick = async () => { if (n < ORDRE_EXPLORER.length - 1) { n++; question(); } else { const freq = {}; strats.forEach((c) => (freq[c] = (freq[c] || 0) + 1)); await sauver({ phase: Math.max(d.phase || 1, 2), strategies: freq }); continuer(); } };
           };
         };
       }
@@ -150,7 +173,7 @@ function explorerTable(t) {
           const v = nombre(inp.value); if (Number.isNaN(v)) return;
           const ok = v === t * k; etat[k] = { val: t * k, ok };
           ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: null, choix: String(v), juste: '', corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
-          const suite = async () => { if (k < 12) { k++; question(); } else { await sauver({ phase: 3 }); sequence3(); } };
+          const suite = async () => { if (k < 12) { k++; question(); } else { await sauver({ phase: Math.max(d.phase || 1, 3) }); continuer(); } };
           if (ok) { suite(); return; }
           inp.disabled = true; $('.calc-form button', root).disabled = true;
           $('#s2fb').innerHTML = `<div class="feedback"><div class="hand ko">Incorrect</div><p>${ecrire(sens, t, k)} = <b>${t * k}</b></p></div><div class="next"><button class="btn" id="s2next">Continuer →</button></div>`;
@@ -189,24 +212,44 @@ function explorerTable(t) {
       question();
     }
 
+    // Après une séquence : la suivante si Explorer n'est pas fini, sinon retour au bilan
+    function continuer() { if (d.phase === 2) sequence2(); else if (d.phase === 3) sequence3(); else fin(); }
+
+    // Retour en cours de route : continuer ou refaire une séquence déjà faite
+    function reprise() {
+      const faites = d.phase - 1;
+      root.innerHTML = `${intro('Explorer en cours', `Tu as terminé ${faites === 1 ? 'la séquence 1' : 'les séquences 1 et 2'} sur 3.`)}
+        <div class="card"><div class="row"><button class="btn" data-seq="${d.phase}">Continuer : séquence ${d.phase} →</button></div>
+        <p class="mini" style="margin-top:14px">Tu peux aussi refaire une séquence déjà terminée :</p>
+        <div class="row">${[1, 2].filter((n) => n <= faites).map((n) => `<button class="btn ghost" data-seq="${n}">Refaire la séquence ${n}</button>`).join('')}</div></div>`;
+      root.onclick = (e) => lancerSeq(e);
+    }
+    function lancerSeq(e) {
+      const b = e.target.closest('[data-seq]'); if (!b) return; root.onclick = null;
+      const n = +b.dataset.seq;
+      if (n === 1) sequence1(); else if (n === 2) sequence2(); else sequence3();
+    }
+
     async function fin() {
+      const dejaFini = d.phase === 4;
       const freq = d.strategies || {}, top = Object.entries(freq).filter(([c]) => !['zero', 'un', 'dix'].includes(c)).sort((a, b) => b[1] - a[1])[0];
       const regle = `Je préfère écrire ${d.sens === 'tk' ? `${t} × ${ex}` : `${ex} × ${t}`}. ${top ? `Pour retrouver un résultat, le plus souvent, ${PHRASES_STRAT[top[0]](t)}.` : ''}`;
       await sauver({ phase: 4, regle }, true);
       termine();
-      ctx.toast('Explorer est terminé : Comprendre est ouvert.');
+      if (!dejaFini) ctx.toast('Explorer est terminé : Comprendre est ouvert.');
     }
     function termine() {
       root.innerHTML = `${intro('Explorer terminé', `Tu as reconstitué la table de ${t}, dans le désordre puis dans l'ordre, et compté des nuages de points.`)}
         <div class="card"><h3>Ta façon de faire</h3><p class="phrase-done">« ${esc(d.regle || '')} »</p><p class="mini">Elle apparaîtra dans ta fiche mémo.</p>
-        <div class="row">${ctx.suite('explorer')}<button class="btn ghost" id="refaire">Refaire Explorer</button></div></div>`;
-      $('#refaire', root).onclick = () => choixSens();
+        <div class="row">${ctx.suite('explorer')}</div></div>
+        <div class="card"><h3>Refaire</h3><p class="mini">Choisis ce que tu veux refaire. Ta façon de faire sera mise à jour.</p>
+        <div class="row"><button class="btn ghost" data-seq="1">Séquence 1 · dans le désordre</button><button class="btn ghost" data-seq="2">Séquence 2 · dans l'ordre</button><button class="btn ghost" data-seq="3">Séquence 3 · les points</button><button class="btn ghost" id="refaireSens">Changer ${t} × ${ex} / ${ex} × ${t}</button></div></div>`;
+      root.onclick = (e) => { if (e.target.id === 'refaireSens') { root.onclick = null; choixSens(); } else lancerSeq(e); };
     }
 
-    if (ctx.prog.explorer?.fait) termine();
+    if (ctx.prog.explorer?.fait) { d.phase = 4; termine(); }
     else if (!d.sens) choixSens();
-    else if (d.phase === 2) sequence2();
-    else if (d.phase === 3) sequence3();
+    else if (d.phase === 2 || d.phase === 3) reprise();
     else sequence1();
   };
 }
