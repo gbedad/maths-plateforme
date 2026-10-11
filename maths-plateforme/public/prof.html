@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Espace enseignant · Maths par l'exemple</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=IBM+Plex+Sans:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@500&family=STIX+Two+Text:wght@500;700&display=swap">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">ℕ</span>Maths par l'exemple <small>Espace enseignant</small></div>
+  <div class="who" id="who" hidden><span><b>Administrateur</b></span><button class="linkbtn" id="logout">Se déconnecter</button></div>
+</header>
+
+<div class="login-wrap" id="login" hidden>
+  <form class="card login" id="loginForm">
+    <h1>Espace enseignant</h1>
+    <p>Entre le mot de passe administrateur défini lors de l'installation.</p>
+    <div class="field"><label for="lgPass">Mot de passe</label><input id="lgPass" type="password" required autocomplete="current-password"></div>
+    <p class="err" id="lgErr" role="alert"></p>
+    <button class="btn" type="submit">Se connecter</button>
+  </form>
+</div>
+<div class="loading" id="loading">Chargement…</div>
+
+<div class="prof-grid" id="app" hidden>
+  <nav class="nav" id="nav" aria-label="Menu"></nav>
+  <main id="main" style="display:grid;gap:18px;min-width:0;align-content:start"></main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script type="module" src="/js/prof.js"></script>
+</body>
+</html>
