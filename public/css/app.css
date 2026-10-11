@@ -130,12 +130,27 @@ svg .mk{fill:var(--accent2)} svg .mkl{fill:var(--accent2);font-family:var(--f-bo
 .choice{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;text-align:left;padding:11px 14px;border-radius:8px;border:1.5px solid var(--border);background:var(--surface);cursor:pointer;line-height:1.4}
 .choice:hover:not([disabled]){border-color:var(--accent)}
 .choice .l{font-weight:700;color:var(--ink-soft);font-family:var(--f-math)}
-.choice.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+.choice.sel{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1.5px var(--accent)}
 .choice.sel .l{color:var(--accent)}
-.choice.good{border-color:var(--ok);background:var(--ok-soft)}
-.choice.bad{border-color:var(--ko);background:var(--ko-soft)}
+.choice.good{border-color:var(--ok);background:var(--ok-soft);box-shadow:inset 0 0 0 1.5px var(--ok);opacity:1}
+.choice.good .l{color:var(--ok)}
+.choice.bad{border-color:var(--ko);background:var(--ko-soft);box-shadow:inset 0 0 0 1.5px var(--ko);opacity:1}
+.choice.bad .l{color:var(--ko)}
+.choice.dim{opacity:.45}
+/* Réponses oui / non */
+.rep{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:140px;min-height:56px;padding:10px 22px;border-radius:12px;border:2px solid var(--border);background:var(--surface);color:var(--ink);font-weight:800;font-size:1.2rem;cursor:pointer}
+.rep:hover:not([disabled]){border-color:var(--accent)}
+.rep.sel{border-color:var(--accent);background:var(--accent);color:var(--surface)}
+.rep[disabled]{cursor:default}
+.rep.good{border-color:var(--ok);background:var(--ok);color:var(--surface)}
+.rep.bad{border-color:var(--ko);background:var(--ko);color:var(--surface)}
+.rep.good-ghost{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
+.rep.dim{opacity:.4}
+.rep .rep-tag{font-size:.72rem;font-weight:700;letter-spacing:.02em}
+.choice .rep-tag{display:block;margin-top:4px;font-size:.78rem;font-weight:800;letter-spacing:.02em}
+.choice.good .rep-tag{color:var(--ok)}
+.choice.bad .rep-tag{color:var(--ko)}
 .choice[disabled]{cursor:default}
-.choice.dim{opacity:.55}
 .feedback{margin-top:20px;padding:14px 16px;border-radius:8px;background:var(--surface);border:1px solid var(--border);max-width:680px}
 .feedback .hand{font-family:var(--f-display);font-weight:800;font-size:1.05rem;line-height:1.2;margin-bottom:4px;letter-spacing:-.01em}
 .feedback .hand.ok{color:var(--ok)} .feedback .hand.ko{color:var(--accent2)}
