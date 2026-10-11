@@ -297,27 +297,30 @@ const ASTUCES = {
   5: [['La moitié de × 10', (k) => `${k} × 10 = ${10 * k}, la moitié : ${5 * k}.`], ['Toujours 0 ou 5 au bout', () => 'Les résultats se terminent tous par 0 ou par 5.']],
   6: [['× 5 puis + le nombre', (k) => `${k} × 6 = ${5 * k} + ${k} = ${6 * k}.`], ['Le double de × 3', (k) => `${k} × 3 = ${3 * k}, le double : ${6 * k}.`]],
   7: [['× 5 puis + × 2', (k) => `${k} × 7 = ${5 * k} + ${2 * k} = ${7 * k}.`], ['5, 6, 7, 8', () => '56 = 7 × 8 : on récite 5, 6, 7, 8 dans l’ordre.']],
-  8: [['5, 6, 7, 8', () => '56 = 7 × 8 : on récite 5, 6, 7, 8 dans l’ordre.']],
+  8: [['× 10 moins 2 fois le nombre', (k) => `${k} × 8 = ${10 * k} − ${2 * k} = ${8 * k}.`], ['5, 6, 7, 8', () => '56 = 7 × 8 : on récite 5, 6, 7, 8 dans l’ordre.']],
   9: [['× 10 moins le nombre', (k) => `${k} × 9 = ${10 * k} − ${k} = ${9 * k}.`], ['La somme des chiffres', () => 'De 9 à 90, les chiffres de chaque résultat s’additionnent pour faire 9 : 7 × 9 = 63 et 6 + 3 = 9.']],
 };
 function plusloinTable(t) {
   return function plusloin(root) {
     const unites = FAITS.map((k) => k * t);
     const dbl = t === 8 || t === 4;
+    const astuces = ASTUCES[t] || [], varie = astuces.some(([, f]) => f.length > 0); // une astuce dépend-elle du nombre choisi ?
+    let num = 0; const q = () => ++num;   // numérotation des parties sans trou
     root.innerHTML = `
       <div class="sheet intro-pl"><div class="eyebrow">Des techniques</div><h3 style="font-size:1.4rem;margin-top:4px">Retrouver la table de ${t} sans tout apprendre par cœur</h3></div>
-      ${dbl ? `<div class="card" data-bloc="1"><div class="block-head"><span class="q">1</span><h3>La technique du ${t === 8 ? 'double, double, double' : 'double du double'}</h3></div>
+      ${dbl ? `<div class="card" data-bloc="1"><div class="block-head"><span class="q">${q()}</span><h3>La technique du ${t === 8 ? 'double, double, double' : 'double du double'}</h3></div>
         <div class="prose"><p>Multiplier par ${t}, c'est prendre le double ${t === 8 ? '3 fois' : '2 fois'}. Complète les cases.</p></div>
         <div class="row"><label for="dbK">Nombre de départ :</label><input id="dbK" class="small-input db-k" type="number" min="1" max="12" value="6"></div>
         <div class="dbl"></div><p class="db-out" role="status" style="margin:8px 0 0"></p></div>` : ''}
-      <div class="card" data-bloc="2"><div class="block-head"><span class="q">${dbl ? 2 : 1}</span><h3>Le rythme des unités</h3></div>
+      <div class="card" data-bloc="2"><div class="block-head"><span class="q">${q()}</span><h3>Le rythme des unités</h3></div>
         <div class="prose"><p>Regarde le dernier chiffre des résultats : il revient toujours dans le même ordre.</p></div>
         <div class="rythme">${unites.map((n) => `<span style="--c:${COUL_UNITES[n % 10]}">${Math.floor(n / 10) || ''}<b>${n % 10}</b></span>`).join('')}</div>
         <p style="margin:10px 0 0">${t % 2 === 0 ? `Ce ne sont que des nombres pairs, car ${t} est un nombre pair.` : `Les résultats sont tour à tour pairs et impairs, car ${t} est impair.`} Les chiffres des unités se suivent : ${[...new Set(unites.slice(0, 10).map((n) => n % 10))].join(', ')}…</p></div>
-      ${(ASTUCES[t] || []).length ? `<div class="card" data-bloc="3"><div class="block-head"><span class="q">${dbl ? 3 : 2}</span><h3>Astuces</h3></div>
-        <div class="row"><label for="asK">Essaie avec :</label><input id="asK" class="small-input as-k" type="number" min="1" max="12" value="7"></div>
+      ${astuces.length ? `<div class="card" data-bloc="3"><div class="block-head"><span class="q">${q()}</span><h3>Astuces</h3></div>
+        ${varie ? `<div class="prose"><p>Change le nombre : l'astuce marche à chaque fois.</p></div>
+        <div class="row"><label for="asK">Choisis un nombre de 1 à 12 :</label><input id="asK" class="small-input as-k" type="number" min="1" max="12" value="7"></div>` : ''}
         <div class="uses as-list" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))"></div></div>` : ''}
-      <div class="card" data-bloc="4"><div class="block-head"><span class="q">4</span><h3>Au-delà de 12</h3></div>
+      <div class="card" data-bloc="4"><div class="block-head"><span class="q">${q()}</span><h3>Au-delà de 12</h3></div>
         <div class="prose"><p>Pour ${t} × 15, on découpe 15 en 10 + 5.</p></div>
         <div class="row"><input class="small-input d-b" type="number" min="13" max="30" value="15" aria-label="Nombre entre 13 et 30"><span>× ${t}</span></div>
         <div class="verdict yes d-out" style="margin-top:12px"></div>
@@ -336,9 +339,9 @@ function plusloinTable(t) {
         const tous = $$('.db-in', root); if (tous.every((x) => +x.value === +x.dataset.r)) { const k = Math.round(+$('.db-k', root).value) || 6; $('.db-out', root).innerHTML = `<b>Donc ${k} × ${t} = ${k * t}.</b>`; }
       });
     }
-    if ($('.as-k', root)) {
-      const ast = () => { let k = Math.round(+$('.as-k', root).value); if (!(k >= 1 && k <= 12)) k = 7; $('.as-list', root).innerHTML = ASTUCES[t].map(([n, f]) => `<div class="use"><b>${n}</b><p class="m">${f(k)}</p></div>`).join(''); };
-      $('.as-k', root).addEventListener('input', ast); ast();
+    if ($('.as-list', root)) {
+      const ast = () => { let k = Math.round(+($('.as-k', root)?.value ?? 7)); if (!(k >= 1 && k <= 12)) k = 7; $('.as-list', root).innerHTML = astuces.map(([n, f]) => `<div class="use"><b>${n}</b><p class="m">${f(k)}</p></div>`).join(''); };
+      $('.as-k', root)?.addEventListener('input', ast); ast();
     }
     const dec = () => { const b = Math.round(+$('.d-b', root).value), o = $('.d-out', root); if (!(b >= 13 && b <= 30)) { o.className = 'verdict d-out'; o.textContent = 'Choisis un nombre de 13 à 30.'; return; } o.className = 'verdict yes d-out'; o.innerHTML = `<span class="m">${b} × ${t} = 10 × ${t} + ${b - 10} × ${t} = ${10 * t} + ${(b - 10) * t} = <b>${b * t}</b></span>`; };
     $('.d-b', root).addEventListener('input', dec); dec();
