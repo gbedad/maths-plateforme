@@ -159,6 +159,7 @@ function tableExercice(ex) {
 async function lireFichier(e) {
   const f = e.target.files[0]; if (!f) return;
   const out = $('#apercu');
+  if (!window.XLSX) { out.innerHTML = '<p class="err" style="margin-top:12px">Le lecteur de fichiers Excel ne s’est pas chargé. Recharge la page (Ctrl + Maj + R) puis réessaie.</p>'; return; }
   try {
     const wb = window.XLSX.read(await f.arrayBuffer(), { type: 'array' });
     const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
