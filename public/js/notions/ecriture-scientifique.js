@@ -1,5 +1,5 @@
 // Notion : l'écriture scientifique a × 10ⁿ (4e)
-import { $, rnd, esc, decStr, sciParts, puiss, expo } from '../outils.js';
+import { $, rnd, esc, decStr, sciParts, puiss, expo, htmlToTxt } from '../outils.js';
 import { GEN } from '../moteur.js';
 
 const SUP = { '⁰': '0', '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁻': '-' };
@@ -95,6 +95,8 @@ function comprendre(root) {
     if (p.err) { out.innerHTML = `<div class="verdict"><div class="v">À corriger</div>${esc(p.err)}</div>`; return; }
     const r = analyse(p);
     out.innerHTML = `<div class="verdict ${r.ok === false ? 'no' : 'yes'}" role="status"><div class="v">${r.titre}</div>${r.texte}${r.etapes.length ? `<ol class="steps-list">${r.etapes.map((e) => `<li>${e}</li>`).join('')}</ol>` : ''}</div>`;
+
+    if (root._onTest) root._onTest(raw.trim(), r.titre + ' : ' + htmlToTxt(r.texte));
   };
   const pow = () => { const n = +$('.p-range', root).value; $('.p-pow', root).innerHTML = `10<sup>${expo(n)}</sup>`; $('.p-dec', root).textContent = '= ' + decStr('1', n); $('.p-nom', root).textContent = NOMS[n] ? `(${NOMS[n]})` : ''; };
   $('.p-range', root).addEventListener('input', pow); pow();
@@ -112,26 +114,26 @@ const PREFIXES = [['nano', 'n', -9], ['micro', 'µ', -6], ['milli', 'm', -3], ['
 
 function plusloin(root) {
   root.innerHTML = `
-  <div class="sheet"><div class="eyebrow">Facultatif · non noté</div><h3 style="font-size:1.4rem;margin-top:4px">Pourquoi écrire les nombres autrement</h3>
+  <div class="sheet intro-pl"><div class="eyebrow">Pour la culture</div><h3 style="font-size:1.4rem;margin-top:4px">Pourquoi écrire les nombres autrement</h3>
     <p class="lead">Les sciences manipulent des nombres immenses et minuscules. Écrits en entier, ils sont illisibles et on se trompe en comptant les zéros.</p></div>
-  <div class="card"><div class="block-head"><span class="q">1</span><h3>Trop de zéros</h3></div>
+  <div class="card" data-bloc="1"><div class="block-head"><span class="q">1</span><h3>Trop de zéros</h3></div>
     <div class="tbl-wrap"><table style="min-width:560px"><tr><th>Grandeur</th><th>Écriture décimale</th><th>Écriture scientifique</th></tr>
       <tr><td>Masse de la Terre</td><td class="m">5 970 000 000 000 000 000 000 000 kg</td><td>${puiss('5,97', 10, 24)} kg</td></tr>
       <tr><td>Vitesse de la lumière</td><td class="m">299 792 458 m/s</td><td>environ ${puiss('3', 10, 8)} m/s</td></tr>
       <tr><td>Taille d'un atome</td><td class="m">environ 0,000 000 000 1 m</td><td>${puiss('1', 10, -10)} m</td></tr></table></div>
     <details class="defi" style="margin-top:12px"><summary>Défi : combien de zéros dans « un milliard de milliards » ?</summary><p>Un milliard, c'est 10<sup>9</sup>. Un milliard de milliards, c'est 10<sup>9</sup> × 10<sup>9</sup> = 10<sup>18</sup> : un 1 suivi de 18 zéros. Les exposants s'additionnent.</p></details></div>
-  <div class="card"><div class="block-head"><span class="q">2</span><h3>D'où vient l'idée</h3></div>
+  <div class="card" data-bloc="2"><div class="block-head"><span class="q">2</span><h3>D'où vient l'idée</h3></div>
     <ol class="tl">
       <li><span class="yr">IIIe s. av. J.-C.</span><span><b>Archimède compte les grains de sable</b>Dans <i>L'Arénaire</i>, il veut montrer qu'aucun nombre n'est trop grand pour être nommé. Les Grecs n'avaient pas de nom au-delà de la myriade (10 000). Archimède construit des nombres toujours plus grands à partir de la « myriade de myriades » (10<sup>8</sup>), et estime qu'il faudrait moins de 10<sup>63</sup> grains de sable pour remplir l'Univers tel qu'on l'imaginait alors.</span></li>
       <li><span class="yr">Aujourd'hui</span><span><b>Sur ta calculatrice</b>Quand un résultat est trop long, la calculatrice affiche par exemple <span class="m">3.7E5</span> : cela veut dire 3,7 × 10<sup>5</sup>. Le E signifie « exposant ».</span></li>
       <li><span class="yr">2022</span><span><b>De nouveaux préfixes</b>Les données du monde entier deviennent si nombreuses que de nouveaux préfixes ont été adoptés : ronna (10<sup>27</sup>) et quetta (10<sup>30</sup>).</span></li>
     </ol></div>
-  <div class="card"><div class="block-head"><span class="q">3</span><h3>Du plus petit au plus grand</h3></div>
+  <div class="card" data-bloc="3"><div class="block-head"><span class="q">3</span><h3>Du plus petit au plus grand</h3></div>
     <div class="prose"><p>Déplace le curseur : chaque cran change l'ordre de grandeur.</p></div>
     <div class="scale"><input type="range" class="e-range" min="0" max="${ECHELLE.length - 1}" value="4" aria-label="Objet"><div class="obj"><span class="p e-val"></span><span class="e-nom" style="font-weight:600"></span></div></div>
     <div class="prose" style="margin-top:14px"><p>Les préfixes des unités sont des puissances de 10 : 1 km = 10<sup>3</sup> m, 1 µm = 10<sup>−6</sup> m.</p></div>
     <div class="prefixes">${PREFIXES.map(([n, s, e, neuf]) => `<div class="${neuf ? 'new' : ''}"><b>${n} (${s})</b>10<sup>${expo(e)}</sup>${neuf ? '<br><small>adopté en 2022</small>' : ''}</div>`).join('')}</div></div>
-  <div class="card"><div class="block-head"><span class="q">4</span><h3>Et ensuite : calculer avec</h3></div>
+  <div class="card" data-bloc="4"><div class="block-head"><span class="q">4</span><h3>Et ensuite : calculer avec</h3></div>
     <div class="prose"><p>Pour multiplier deux nombres en écriture scientifique, on multiplie les nombres a entre eux et on additionne les exposants. Parfois, il faut ensuite rectifier.</p></div>
     <div class="row"><input class="small-input m-a1" value="5" aria-label="Premier nombre a"><span>× 10^</span><input class="small-input m-n1" type="number" value="3" style="width:5em" aria-label="Premier exposant"><b>×</b><input class="small-input m-a2" value="4" aria-label="Second nombre a"><span>× 10^</span><input class="small-input m-n2" type="number" value="2" style="width:5em" aria-label="Second exposant"></div>
     <div class="verdict m-out" style="margin-top:12px"></div>
@@ -152,8 +154,24 @@ function plusloin(root) {
   root.querySelectorAll('.m-a1,.m-n1,.m-a2,.m-n2').forEach((i) => i.addEventListener('input', mult)); mult();
 }
 
+function ensavoirplus(root) { plusloin(root); root.querySelectorAll('[data-bloc="4"]').forEach((n) => n.remove()); }
+function allerplusloin(root) { plusloin(root); root.querySelectorAll('[data-bloc]:not([data-bloc="4"]), .intro-pl, .sources').forEach((n) => n.remove()); root.querySelectorAll('.q').forEach((n) => n.remove()); }
+
 export default {
   id: 'ecriture-scientifique',
+  affiche: afficheSaisie,
+  definition: '<div class="big m">a × 10<sup>n</sup></div><p>avec <b>1 ≤ a &lt; 10</b> (un seul chiffre non nul avant la virgule) et <b>n un entier relatif</b>.</p>',
+  explorer: {
+    consigne: "Ces écritures sont rangées en deux familles. Observe-les bien, puis range les nouvelles. Personne ne t'a encore donné la règle : c'est à toi de la trouver.",
+    oui: 'Dans la famille', non: 'Hors de la famille',
+    exemplesOui: ['3,7 × 10^5', '1,2 × 10^-3', '7 × 10^4', '9,05 × 10^2', '2,5 × 10^8'], exemplesNon: ['23 × 10^4', '0,5 × 10^3', '10 × 10^2', '45 300', '3,1 × 2^5'],
+    regle: ["Une écriture est dans la famille quand elle s'écrit a × ", { options: ['10ⁿ', '2ⁿ', 'n'] }, ' avec a ', { options: ['entre 1 (inclus) et 10 (exclu)', 'plus grand que 10', 'entre 0 et 1'] }, '.'],
+  },
+  defis: [
+    { q: 'Quelle est l’écriture scientifique de (5 × 10³) × (4 × 10²) ?', options: ['20 × 10⁵', '2 × 10⁶', '2 × 10⁵'], juste: 1, expl: '5 × 4 = 20 et 10³ × 10² = 10⁵, donc 20 × 10⁵. Mais 20 n’est pas entre 1 et 10 : 20 × 10⁵ = 2 × 10⁶.' },
+    { q: 'Un milliard de milliards, c’est…', options: ['10¹⁸', '10¹²', '10⁸¹'], juste: 0, expl: 'Un milliard = 10⁹. 10⁹ × 10⁹ = 10¹⁸ : les exposants s’additionnent.' },
+  ],
+  ensavoirplus, allerplusloin,
   niveau: '4e',
   symbole: '×10ⁿ',
   titre: "L'écriture scientifique",

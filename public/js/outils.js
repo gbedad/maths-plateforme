@@ -40,3 +40,13 @@ export function toast(msg) {
   t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 3500);
 }
 export const dateFr = (s) => { if (!s) return '—'; const d = new Date(s.replace(' ', 'T') + (s.endsWith('Z') ? '' : 'Z')); return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) + ' · ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }); };
+
+/* HTML produit par la plateforme → texte brut (exposants en caractères Unicode), pour l'enregistrer */
+const SUPS = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '−': '⁻', '-': '⁻', n: 'ⁿ' };
+export function htmlToTxt(html) {
+  return String(html ?? '')
+    .replace(/<sup>(.*?)<\/sup>/g, (_, x) => [...x].map((c) => SUPS[c] ?? c).join(''))
+    .replace(/<span class="frac"><span>(.*?)<\/span><span>(.*?)<\/span><\/span>/g, '$1/$2')
+    .replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+    .replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
+}

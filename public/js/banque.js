@@ -81,3 +81,18 @@ export function lireBanque(rows) {
   if (!exercices.length) throw new Error('Aucune question valide trouvée. Vérifie que la colonne « Corrigé question » contient oui ou non.');
   return { exercices, avertissements };
 }
+
+/** Feuille « Parcours » (facultative) : une ligne par notion, avec ses réglages. */
+export function lireParcours(rows) {
+  if (!rows || !rows.length) return {};
+  const h = (rows[0] || []).map(norm);
+  const iN = h.indexOf('notion'), iS = h.findIndex((x) => x.startsWith('seuil explorer'));
+  const config = {};
+  for (const r of rows.slice(1)) {
+    const notion = String(r[iN] ?? '').trim();
+    if (!notion) continue;
+    const seuil = parseInt(r[iS], 10);
+    config[notion] = { seuilExplorer: seuil > 0 ? seuil : 6 };
+  }
+  return config;
+}

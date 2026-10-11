@@ -90,6 +90,7 @@ function comprendre(root) {
     const r = explain(p);
     out.innerHTML = `<div class="verdict ${r.ok ? 'yes' : 'no'}" role="status"><div class="v">${r.ok ? "Oui, c'est un entier naturel" : "Non, ce n'est pas un entier naturel"}</div>${esc(r.t)}</div>`;
     drawLine($('.t-line', root), p.v, raw.trim().replace(/-/g, '−'));
+    if (root._onTest) root._onTest(raw.trim().replace(/-/g, '−'), (r.ok ? 'Oui : ' : 'Non : ') + r.t);
   };
   $('.t-form', root).addEventListener('submit', (e) => { e.preventDefault(); run($('.t-in', root).value); });
   $('.examples', root).addEventListener('click', (e) => { const b = e.target.closest('.ex'); if (!b) return; $('.t-in', root).value = b.dataset.ex; run(b.dataset.ex); $('.tester', root).scrollIntoView({ behavior: 'smooth', block: 'nearest' }); });
@@ -98,9 +99,9 @@ function comprendre(root) {
 
 function plusloin(root) {
   root.innerHTML = `
-  <div class="sheet"><div class="eyebrow">Facultatif · non noté</div><h3 style="font-size:1.4rem;margin-top:4px">Pourquoi les entiers naturels existent</h3>
+  <div class="sheet intro-pl"><div class="eyebrow">Pour la culture</div><h3 style="font-size:1.4rem;margin-top:4px">Pourquoi les entiers naturels existent</h3>
     <p class="lead">Les hommes ont compté bien avant de savoir définir ce qu'est un nombre. Voici d'où viennent les entiers, à quoi ils servent aujourd'hui, et pourquoi ils ne suffisent pas.</p></div>
-  <div class="card"><div class="block-head"><span class="q">1</span><h3>D'où ils viennent : compter</h3></div>
+  <div class="card" data-bloc="1"><div class="block-head"><span class="q">1</span><h3>D'où ils viennent : compter</h3></div>
     <div class="prose"><p>Le premier besoin est de compter : des bêtes, des jours, des objets échangés. Pour cela, pas besoin de chiffres. Une entaille par objet suffit.</p></div>
     <div class="tally" aria-live="polite"></div>
     <div class="row"><button class="btn sm b-add">+ 1 entaille</button><button class="btn sm ghost b-reset">Effacer</button><span style="font-size:.85rem;color:var(--ink-soft)">Grouper par 5 rend le comptage plus rapide à lire.</span></div>
@@ -110,12 +111,12 @@ function plusloin(root) {
       <li><span class="yr">628</span><span><b>Le zéro devient un nombre</b>En Inde, Brahmagupta donne des règles de calcul avec zéro, par exemple a + 0 = a.</span></li>
       <li><span class="yr">1202</span><span><b>Les chiffres arrivent en Europe</b>Fibonacci fait connaître les chiffres indo-arabes 0 à 9 et la numération de position.</span></li>
     </ol></div>
-  <div class="card"><div class="block-head"><span class="q">2</span><h3>Pourquoi une définition précise</h3></div>
+  <div class="card" data-bloc="2"><div class="block-head"><span class="q">2</span><h3>Pourquoi une définition précise</h3></div>
     <div class="prose"><p>À la fin du XIXe siècle, les mathématiciens veulent tout reconstruire sur des bases solides. Dedekind (1888) puis Peano (1889) décrivent les entiers naturels avec une idée simple : on part d'un premier nombre, et <b>chaque entier a un suivant</b>.</p></div>
     <div class="succ"></div><div class="row"><button class="btn sm b-succ">Prendre le suivant (+1)</button></div>
     <div class="prose" style="margin-top:12px"><p>Peano commençait d'abord à 1, puis il a ajouté 0. La convention varie encore selon les pays. <b>En France, 0 est un entier naturel</b>. Pour parler des entiers sans 0, on écrit <span class="m">ℕ*</span>.</p></div>
     <details class="defi" style="margin-top:12px"><summary>Défi : quel est le plus grand entier naturel ?</summary><p>Il n'existe pas. Si quelqu'un propose un nombre n, il suffit de prendre n + 1 : c'est encore un entier naturel, et il est plus grand.</p></details></div>
-  <div class="card"><div class="block-head"><span class="q">3</span><h3>Où on s'en sert aujourd'hui</h3></div>
+  <div class="card" data-bloc="3"><div class="block-head"><span class="q">3</span><h3>Où on s'en sert aujourd'hui</h3></div>
     <div class="prose"><p>Un ordinateur ne manipule que des 0 et des 1. Tout entier naturel peut s'écrire ainsi, en <b>binaire</b> : on le décompose en puissances de 2.</p></div>
     <div class="row" style="margin-top:6px"><label for="binIn">Écris un entier de 0 à 1023 :</label><input class="small-input b-in" id="binIn" type="number" min="0" max="1023" value="13"></div>
     <div class="bin"></div><p class="b-txt" style="margin:8px 0 0;font-size:.92rem"></p>
@@ -124,7 +125,7 @@ function plusloin(root) {
       <div class="use"><b>Informatique</b><p>Pixels, abonnés, compteurs : les logiciels stockent tout cela comme des entiers naturels en binaire.</p></div>
       <div class="use"><b>Paiements sécurisés</b><p>Multiplier deux très grands nombres premiers est facile. Retrouver ces deux nombres à partir du produit est extrêmement long. Le chiffrement des paiements en ligne repose sur cette difficulté.</p></div>
     </div></div>
-  <div class="card"><div class="block-head"><span class="q">4</span><h3>Ce qui manque à ℕ</h3></div>
+  <div class="card" data-bloc="4"><div class="block-head"><span class="q">4</span><h3>Ce qui manque à ℕ</h3></div>
     <div class="prose"><p>Prends deux entiers naturels et fais une opération. Le résultat est-il encore dans ℕ ?</p></div>
     <div class="row"><input class="small-input o-a" type="number" min="0" value="3" aria-label="Premier entier"><span class="m">et</span><input class="small-input o-b" type="number" min="0" value="5" aria-label="Second entier"></div>
     <div class="ops"></div><p class="o-txt" style="margin:12px 0 0;max-width:64ch"></p>
@@ -163,8 +164,24 @@ function plusloin(root) {
   tally(); succ(); bin(); ops();
 }
 
+function ensavoirplus(root) { plusloin(root); root.querySelectorAll('[data-bloc="4"]').forEach((n) => n.remove()); }
+function allerplusloin(root) { plusloin(root); root.querySelectorAll('[data-bloc]:not([data-bloc="4"]), .intro-pl, .sources').forEach((n) => n.remove()); root.querySelectorAll('.q').forEach((n) => n.remove()); }
+
 export default {
   id: 'entiers-naturels',
+  affiche,
+  definition: '<div class="big m">ℕ = {0 ; 1 ; 2 ; 3 ; …}</div><p>Un entier naturel est un nombre <b>entier</b> (sans virgule ni partie fractionnaire) et <b>positif ou nul</b>.</p>',
+  explorer: {
+    consigne: "Ces nombres sont rangés en deux familles. Observe-les bien, puis range les nouveaux nombres. Personne ne t'a encore donné la règle : c'est à toi de la trouver.",
+    oui: 'Dans la famille', non: 'Hors de la famille',
+    exemplesOui: ['3', '0', '12', '150', '7', '2024'], exemplesNon: ['−4', '2,5', '1/3', '−10', '0,7', '7/2'],
+    regle: ['Un nombre est dans la famille quand il est ', { options: ['entier', 'décimal', 'une fraction'] }, ' et ', { options: ['positif ou nul', 'strictement positif', 'négatif'] }, '.'],
+  },
+  defis: [
+    { q: '3 − 5 donne −2. Quel ensemble faut-il pour pouvoir écrire ce résultat ?', options: ['ℕ suffit', 'Il faut les entiers relatifs ℤ', 'Il faut les décimaux 𝔻'], juste: 1, expl: '−2 est négatif : il n’est pas dans ℕ. Les entiers relatifs ℤ ajoutent les nombres négatifs.' },
+    { q: 'Parmi ces opérations sur deux entiers naturels, laquelle donne toujours un entier naturel ?', options: ['La soustraction', 'La division', 'La multiplication'], juste: 2, expl: 'Le produit de deux entiers naturels est toujours un entier naturel. La soustraction peut donner un négatif, la division un nombre non entier.' },
+  ],
+  ensavoirplus, allerplusloin,
   niveau: '2nde',
   symbole: 'ℕ',
   titre: 'Les entiers naturels',

@@ -2,4 +2,3 @@ node_modules/
 .wrangler/
 .dev.vars
 data/seed.sql
-package-lock.json

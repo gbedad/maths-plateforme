@@ -1,12 +1,16 @@
 # Maths par l'exemple
 
-Plateforme pour comprendre les notions de maths par l'exemple. Pour chaque notion, l'élève a cinq onglets :
+Plateforme pour comprendre les notions de maths par l'exemple. Pour chaque notion, l'élève suit un **parcours en 7 étapes** ; chaque étape ouvre la suivante :
 
-- **Comprendre** : la définition, un testeur et des exemples.
-- **S'entraîner** : des questions oui/non, suivies d'un « pourquoi ».
-- **Jouer** : deux mini-jeux.
-- **Aller plus loin** : du contexte sur la notion.
-- **Mon suivi** : l'historique de ses séries.
+1. **Explorer** : ranger des nombres dans deux familles, sans note, puis écrire la règle avec ses mots. Le nombre de bonnes réponses qui ouvre l'étape suivante se règle dans la feuille « Parcours » de l'Excel.
+2. **Comprendre** : la définition officielle à côté de la règle de l'élève, le testeur, les pièges.
+3. **En savoir plus** : d'où vient la notion et à quoi elle sert.
+4. **Jouer** : deux mini-jeux, sans score.
+5. **S'entraîner** : questions oui/non + pourquoi. Jusqu'à 3 étoiles.
+6. **Retenir** : la fiche mémo construite à partir du parcours de l'élève, et des révisions espacées. Jusqu'à 3 étoiles.
+7. **Aller plus loin** : la suite de la notion et deux défis. Jusqu'à 3 étoiles.
+
+Pas de note : chaque type de question est une **compétence** (Découverte → En cours → Maîtrisée → Ancrée). Il y a aussi des badges, les jours actifs de la semaine et un objectif de classe coopératif. La notion suivante s'ouvre à la fin du parcours.
 
 - **Élèves** : page d'accueil `/`. Connexion avec le code de la classe, un pseudo et un code secret à 4 chiffres. Aucune adresse e-mail n'est demandée.
 - **Enseignant (administrateur)** : `/prof.html`. Il crée les classes, règle les onglets visibles et les notions ouvertes, voit les résultats, importe la banque Excel et lit les signalements.
@@ -38,7 +42,7 @@ scripts/seed.mjs   Excel → SQL pour remplir la base en ligne de commande
 
 ## Mise en ligne (une seule fois)
 
-Il faut un compte Cloudflare et Node.js 20 ou plus.
+Il faut un compte Cloudflare et Node.js 22 ou plus.
 
 ```bash
 npm install
@@ -60,7 +64,7 @@ npx wrangler secret put SESSION_SECRET     # longue chaîne aléatoire, ex. : op
 npm run deploy
 ```
 
-Wrangler affiche ensuite l'adresse du site, du type `https://maths-par-l-exemple.<ton-compte>.workers.dev`. Tu peux lui associer un nom de domaine dans le tableau de bord Cloudflare : Workers → le Worker → Settings → Domains & Routes.
+Wrangler affiche ensuite l'adresse du site, du type `https://maths-plateforme.<ton-compte>.workers.dev`. Tu peux lui associer un nom de domaine dans le tableau de bord Cloudflare : Workers → le Worker → Settings → Domains & Routes.
 
 **Déploiement automatique (facultatif).** Mets le dossier sur GitHub. Dans le tableau de bord Cloudflare, relie le dépôt au Worker : Workers & Pages → le Worker → Settings → Builds. Commande de déploiement : `npx wrangler deploy`. Chaque `git push` met alors le site à jour.
 
@@ -79,6 +83,17 @@ cp .dev.vars.example .dev.vars          # mot de passe et secret de test
 npm run db:migrate:local
 npm run seed:local
 npm run dev                              # http://localhost:8787 et /prof.html
+```
+
+## Mettre à jour une installation existante
+
+Après avoir récupéré une nouvelle version du code :
+
+```bash
+npm install
+npm run db:migrate:remote   # ajoute les nouvelles tables si besoin (sans toucher aux données)
+npm run seed:remote         # recharge la banque et la feuille « Parcours »
+git push                    # déploie
 ```
 
 ## Mettre à jour les exercices

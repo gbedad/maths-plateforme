@@ -2,11 +2,15 @@
 // Les pages (public/) sont servies par Cloudflare ; ce Worker ne répond qu'aux routes /api/*.
 
 const NOTIONS_PAR_NIVEAU = { '4e': ['ecriture-scientifique'], '2nde': ['entiers-naturels'] };
+const ETAPES = ['explorer', 'comprendre', 'ensavoirplus', 'jouer', 'entrainer', 'retenir', 'plusloin'];
 const REGLAGES_DEFAUT = (niveau) => ({
-  onglets: { comprendre: true, jouer: true, plusloin: true },
+  etapes: Object.fromEntries(ETAPES.map((e) => [e, true])),
   auto: true,
+  objectif: 50,
   notions: NOTIONS_PAR_NIVEAU[niveau] || ['entiers-naturels'],
 });
+// Badges de piège : générateur de la variante → nom du badge
+const BADGES_PIEGE = { 'valeur(0)': { nom: 'Démineur du zéro', desc: 'Maîtriser la question « 0 est-il un entier naturel ? »' }, 'sci_dix()': { nom: 'Démineur du dix', desc: 'Maîtriser le piège 10 × 10ⁿ' } };
 const SESSION_JOURS = 30;
 
 export default {
@@ -47,6 +51,7 @@ async function route(req, env, url) {
       if (m === 'DELETE') return supprimer(env, 'classes', +r[1]);
     }
     if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)\/pin$/)) && m === 'DELETE') return reinitPin(env, +r[1]);
+    if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)\/fiche$/)) && m === 'GET') return json(await compilerFiche(env, +r[1], url.searchParams.get('notion')));
     if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)$/)) && m === 'DELETE') return supprimer(env, 'eleves', +r[1]);
     if (p === '/api/prof/banque' && m === 'GET') return lireBanque(env);
     if (p === '/api/prof/banque' && m === 'PUT') return ecrireBanque(req, env);
@@ -63,6 +68,9 @@ async function route(req, env, url) {
     if (p === '/api/eleve/series' && m === 'POST') return enregistrerSerie(req, env, s.id);
     if (p === '/api/eleve/jeux' && m === 'POST') return enregistrerJeu(req, env, s.id);
     if (p === '/api/eleve/signalements' && m === 'POST') return signaler(req, env, s.id);
+    if (p === '/api/eleve/reponses' && m === 'POST') return enregistrerReponses(req, env, s.id);
+    if (p === '/api/eleve/progression' && m === 'POST') return enregistrerProgression(req, env, s.id);
+    if (p === '/api/eleve/fiche' && m === 'GET') return json(await compilerFiche(env, s.id, url.searchParams.get('notion')));
   }
   throw new HttpError(404, 'Route inconnue.');
 }
@@ -120,7 +128,11 @@ async function profLogin(req, env) {
 function lireReglages(classe) {
   let r = {}; try { r = JSON.parse(classe.reglages || '{}'); } catch {}
   const d = REGLAGES_DEFAUT(classe.niveau);
-  return { ...d, ...r, onglets: { ...d.onglets, ...(r.onglets || {}) } };
+  const anciens = r.onglets || {}; // anciens réglages (3 onglets) repris dans les étapes
+  const etapes = { ...d.etapes, ...anciens, ...(r.etapes || {}) };
+  delete r.onglets;
+  etapes.entrainer = true; // S'entraîner ne se masque pas
+  return { ...d, ...r, etapes };
 }
 
 async function listerClasses(env) {
@@ -149,29 +161,27 @@ async function creerClasse(req, env) {
 async function detailClasse(env, id) {
   const c = await env.DB.prepare('SELECT * FROM classes WHERE id = ?').bind(id).first();
   if (!c) throw new HttpError(404, 'Classe introuvable.');
-  const { results: eleves } = await env.DB.prepare(`
-    SELECT e.id, e.pseudo, e.created_at, e.derniere_activite, (e.pin_hash IS NOT NULL) AS a_pin,
-      COUNT(s.id) AS nb_series, MAX(CAST(s.score AS REAL) / s.max) AS meilleur, AVG(CAST(s.score AS REAL) / s.max) AS moyenne
-    FROM eleves e LEFT JOIN series s ON s.eleve_id = e.id
-    WHERE e.classe_id = ? GROUP BY e.id ORDER BY e.pseudo COLLATE NOCASE`).bind(id).all();
-  const { results: series } = await env.DB.prepare(`
-    SELECT s.eleve_id, s.notion, s.details FROM series s JOIN eleves e ON e.id = s.eleve_id WHERE e.classe_id = ?`).bind(id).all();
-  // Réussite par variante (toute la classe et par élève)
-  const parVariante = {}, parEleve = {};
-  for (const s of series) {
-    let d = []; try { d = JSON.parse(s.details); } catch {}
-    for (const q of d) {
-      const k = `${s.notion}|${q.variante}`;
-      const a = (parVariante[k] ||= { notion: s.notion, variante: q.variante, libelle: q.libelle || q.variante, points: 0, max: 0 });
-      a.points += q.pts; a.max += 2;
-      const b = ((parEleve[s.eleve_id] ||= {})[k] ||= { points: 0, max: 0 });
-      b.points += q.pts; b.max += 2;
-    }
+  const reglages = lireReglages(c);
+  const [el, rep, prog, jx] = await Promise.all([
+    env.DB.prepare('SELECT e.id, e.pseudo, e.created_at, e.derniere_activite, (e.pin_hash IS NOT NULL) AS a_pin FROM eleves e WHERE e.classe_id = ? ORDER BY e.pseudo COLLATE NOCASE').bind(id).all(),
+    env.DB.prepare(`SELECT r.eleve_id, r.notion, r.source, r.variante, r.libelle, r.ok1, r.ok2, r.created_at FROM reponses r JOIN eleves e ON e.id = r.eleve_id
+      WHERE e.classe_id = ? AND r.source IN ('entrainer','retenir') ORDER BY r.created_at, r.id`).bind(id).all(),
+    env.DB.prepare('SELECT p.eleve_id, p.notion, p.etape, p.fait, p.etoiles FROM progression p JOIN eleves e ON e.id = p.eleve_id WHERE e.classe_id = ?').bind(id).all(),
+    env.DB.prepare('SELECT j.eleve_id, COUNT(*) AS parties FROM jeux j JOIN eleves e ON e.id = j.eleve_id WHERE e.classe_id = ? GROUP BY j.eleve_id').bind(id).all(),
+  ]);
+  const groupes = {}, libelles = {};
+  for (const r of rep.results) { (groupes[r.eleve_id + '|' + r.notion] ||= []).push(r); libelles[r.notion + '|' + r.variante] = r.libelle; }
+  const grille = {};
+  let ancrees = 0;
+  for (const [k, g] of Object.entries(groupes)) {
+    const [eid, notion] = k.split('|'), m = calculerMaitrise(g);
+    ((grille[eid] ||= {})[notion] = Object.fromEntries(Object.entries(m).map(([v, x]) => [v, x.niveau])));
+    ancrees += Object.values(m).filter((x) => x.niveau >= 4).length;
   }
-  const { results: jeux } = await env.DB.prepare(`
-    SELECT j.eleve_id, j.jeu, MAX(j.score) AS record, COUNT(*) AS parties FROM jeux j JOIN eleves e ON e.id = j.eleve_id
-    WHERE e.classe_id = ? GROUP BY j.eleve_id, j.jeu`).bind(id).all();
-  return json({ classe: { ...c, reglages: lireReglages(c) }, eleves, parVariante: Object.values(parVariante), parEleve, jeux });
+  const etapes = {};
+  for (const p of prog.results) ((etapes[p.eleve_id] ||= {})[p.notion] ||= {})[p.etape] = { fait: p.fait, etoiles: p.etoiles };
+  const parties = Object.fromEntries(jx.results.map((j) => [j.eleve_id, j.parties]));
+  return json({ classe: { ...c, reglages }, eleves: el.results, grille, etapes, parties, libelles, objectif: { cible: Math.max(1, +reglages.objectif || 50), atteint: ancrees } });
 }
 
 async function modifierClasse(req, env, id) {
@@ -200,13 +210,17 @@ async function lireBanque(env) {
 }
 
 async function ecrireBanque(req, env) {
-  const { exercices } = await body(req);
+  const { exercices, config } = await body(req);
   if (!Array.isArray(exercices) || !exercices.length) throw new HttpError(400, 'Le fichier ne contient aucun exercice.');
   const notions = [...new Set(exercices.map((e) => e.notion))];
   const stmts = notions.map((n) => env.DB.prepare('DELETE FROM exercices WHERE notion = ?').bind(n));
   for (const e of exercices) {
     if (!e.notion || !e.numero || !Array.isArray(e.variantes) || !e.variantes.length) throw new HttpError(400, `Exercice incomplet (${e.notion || '?'} n°${e.numero || '?'}).`);
     stmts.push(env.DB.prepare('INSERT INTO exercices (notion, numero, donnees) VALUES (?, ?, ?)').bind(e.notion, e.numero, JSON.stringify(e)));
+  }
+  for (const [notion, c] of Object.entries(config && typeof config === 'object' ? config : {})) {
+    stmts.push(env.DB.prepare("INSERT INTO notions_config (notion, donnees, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(notion) DO UPDATE SET donnees = excluded.donnees, updated_at = excluded.updated_at")
+      .bind(String(notion).slice(0, 40), JSON.stringify(c).slice(0, 4000)));
   }
   await env.DB.batch(stmts);
   return json({ ok: true, notions, nb: exercices.length });
@@ -257,15 +271,137 @@ async function eleveMoi(env, id) {
   await env.DB.prepare("UPDATE eleves SET derniere_activite = datetime('now') WHERE id = ?").bind(id).run();
   const reglages = lireReglages(e);
   const ph = reglages.notions.map(() => '?').join(',') || "''";
-  const { results: ex } = await env.DB.prepare(`SELECT donnees FROM exercices WHERE notion IN (${ph}) ORDER BY notion, numero`).bind(...reglages.notions).all();
-  const { results: records } = await env.DB.prepare('SELECT notion, jeu, MAX(score) AS record FROM jeux WHERE eleve_id = ? GROUP BY notion, jeu').bind(id).all();
-  const { results: meilleurs } = await env.DB.prepare('SELECT notion, MAX(CAST(score AS REAL) / max) AS meilleur, COUNT(*) AS nb FROM series WHERE eleve_id = ? GROUP BY notion').bind(id).all();
+  const [ex, prog, cfg, jeux, rep] = await Promise.all([
+    env.DB.prepare(`SELECT donnees FROM exercices WHERE notion IN (${ph}) ORDER BY notion, numero`).bind(...reglages.notions).all(),
+    env.DB.prepare('SELECT notion, etape, fait, etoiles, donnees, updated_at FROM progression WHERE eleve_id = ?').bind(id).all(),
+    env.DB.prepare(`SELECT notion, donnees FROM notions_config WHERE notion IN (${ph})`).bind(...reglages.notions).all(),
+    env.DB.prepare('SELECT notion, jeu, score, created_at FROM jeux WHERE eleve_id = ?').bind(id).all(),
+    env.DB.prepare("SELECT notion, source, variante, ok1, ok2, created_at FROM reponses WHERE eleve_id = ? AND source IN ('entrainer','retenir') ORDER BY created_at, id").bind(id).all(),
+  ]);
+  const exercices = ex.results.map((r) => JSON.parse(r.donnees));
+  const progression = prog.results.map((p) => ({ ...p, donnees: JSON.parse(p.donnees || '{}') }));
+  const maitrise = {};
+  for (const n of reglages.notions) maitrise[n] = calculerMaitrise(rep.results.filter((r) => r.notion === n));
   return json({
     eleve: { id: e.id, pseudo: e.pseudo },
     classe: { id: e.classe_id, nom: e.classe, niveau: e.niveau, reglages },
-    exercices: ex.map((r) => JSON.parse(r.donnees)),
-    records, meilleurs,
+    exercices, progression, maitrise,
+    config: Object.fromEntries(cfg.results.map((c) => [c.notion, JSON.parse(c.donnees || '{}')])),
+    badges: calculerBadges({ rep: rep.results, progression, jeux: jeux.results, maitrise, exercices }),
+    semaine: joursActifs([...rep.results, ...jeux.results, ...prog.results.map((p) => ({ created_at: p.updated_at }))]),
+    objectif: await objectifClasse(env, e.classe_id, reglages),
   });
+}
+
+/* ---------- Maîtrise : 0 jamais vue · 1 découverte · 2 en cours · 3 maîtrisée · 4 ancrée ---------- */
+const H20 = 20 * 3600e3;
+const ts = (s) => new Date(String(s).replace(' ', 'T') + 'Z').getTime();
+function calculerMaitrise(rows) {
+  const out = {};
+  for (const r of rows) {
+    const v = (out[r.variante] ||= { niveau: 1, serie: 0, maitriseeLe: null, ancree: false, justes: 0, erreurs: 0, rebond: false, dernier: null });
+    const t = ts(r.created_at), plein = r.ok1 && (r.ok2 === null || r.ok2 === 1);
+    if (plein) {
+      v.justes++; v.serie++;
+      if (v.erreurs) v.rebond = true;
+      if (v.serie >= 3 && !v.maitriseeLe) v.maitriseeLe = t;
+      if (r.source === 'retenir' && v.maitriseeLe && t - v.maitriseeLe >= H20) v.ancree = true;
+    } else { v.erreurs++; v.serie = 0; v.maitriseeLe = null; v.ancree = false; }
+    v.dernier = t;
+    v.niveau = v.ancree ? 4 : v.maitriseeLe ? 3 : v.justes ? 2 : 1;
+  }
+  for (const v of Object.values(out)) v.revision = v.niveau < 4 ? new Date(v.dernier + H20).toISOString() : null;
+  return out;
+}
+
+function joursActifs(rows) {
+  const now = new Date(), jour = (now.getUTCDay() + 6) % 7; // lundi = 0
+  const lundi = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - jour);
+  const actifs = new Set();
+  for (const r of rows) { const t = ts(r.created_at); if (t >= lundi) actifs.add(Math.floor((t - lundi) / 864e5)); }
+  return [0, 1, 2, 3, 4, 5, 6].map((i) => actifs.has(i));
+}
+
+function calculerBadges({ rep, progression, jeux, maitrise, exercices }) {
+  const niveaux = Object.values(maitrise).flatMap((m) => Object.values(m));
+  const pourquoiJustes = rep.filter((r) => r.ok2 === 1).length;
+  const fait = (etape) => progression.some((p) => p.etape === etape && p.fait);
+  const jours = joursActifs([...rep, ...jeux]).filter(Boolean).length;
+  const b = [
+    { id: 'explorateur', nom: 'Explorateur', desc: 'Découvrir une règle dans Explorer.', got: fait('explorer') },
+    { id: 'justificateur', nom: 'Justificateur', desc: 'Choisir 10 bonnes justifications.', got: pourquoiJustes >= 10, prog: `${Math.min(pourquoiJustes, 10)} sur 10` },
+    { id: 'rebond', nom: 'Rebond', desc: "Réussir une question sur laquelle tu t'étais trompé.", got: niveaux.some((v) => v.rebond) },
+    { id: 'joueur', nom: 'Joueur', desc: 'Terminer 3 parties.', got: jeux.length >= 3, prog: `${Math.min(jeux.length, 3)} sur 3` },
+    { id: 'regulier', nom: 'Régulier', desc: 'Être actif 4 jours dans la même semaine.', got: jours >= 4, prog: `${jours} sur 4 cette semaine` },
+    { id: 'ancre', nom: 'Bien ancré', desc: 'Ancrer une première compétence.', got: niveaux.some((v) => v.niveau >= 4) },
+    { id: 'parcours', nom: 'Parcours complet', desc: "Aller jusqu'au bout d'Aller plus loin.", got: fait('plusloin') },
+  ];
+  for (const ex of exercices) for (const v of ex.variantes) {
+    const p = BADGES_PIEGE[v.generateur]; if (!p) continue;
+    const m = maitrise[ex.notion]?.[v.id];
+    b.splice(1, 0, { id: 'piege-' + v.generateur, nom: p.nom, desc: p.desc, got: !!m && m.niveau >= 3 });
+  }
+  return b;
+}
+
+async function objectifClasse(env, classeId, reglages) {
+  const { results } = await env.DB.prepare(`SELECT r.eleve_id, r.notion, r.source, r.variante, r.ok1, r.ok2, r.created_at FROM reponses r JOIN eleves e ON e.id = r.eleve_id
+    WHERE e.classe_id = ? AND r.source IN ('entrainer','retenir') ORDER BY r.created_at, r.id`).bind(classeId).all();
+  const groupes = {};
+  for (const r of results) (groupes[r.eleve_id + '|' + r.notion] ||= []).push(r);
+  let ancrees = 0;
+  for (const g of Object.values(groupes)) ancrees += Object.values(calculerMaitrise(g)).filter((v) => v.niveau >= 4).length;
+  return { cible: Math.max(1, +reglages.objectif || 50), atteint: ancrees };
+}
+
+/* ---------- Réponses et progression ---------- */
+const txt = (s, n) => String(s ?? '').replace(/[<>]/g, '').slice(0, n);
+async function enregistrerReponses(req, env, id) {
+  const b = await body(req);
+  if (!b.notion || !['entrainer', 'retenir', 'explorer'].includes(b.source) || !Array.isArray(b.items)) throw new HttpError(400, 'Réponses invalides.');
+  const stmts = b.items.slice(0, 20).map((it) => env.DB.prepare('INSERT INTO reponses (eleve_id, notion, source, variante, libelle, question, ok1, ok2, choix, juste, corrige) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, txt(b.notion, 40), b.source, txt(it.variante, 40), txt(it.libelle, 120), txt(it.question, 120), it.ok1 ? 1 : 0, it.ok2 == null ? null : it.ok2 ? 1 : 0, txt(it.choix, 300), txt(it.juste, 300), txt(it.corrige, 600)));
+  if (stmts.length) await env.DB.batch(stmts);
+  return json({ ok: true }, 201);
+}
+
+async function enregistrerProgression(req, env, id) {
+  const b = await body(req);
+  if (!b.notion || !ETAPES.includes(b.etape)) throw new HttpError(400, 'Étape inconnue.');
+  const cur = await env.DB.prepare('SELECT * FROM progression WHERE eleve_id = ? AND notion = ? AND etape = ?').bind(id, b.notion, b.etape).first();
+  let donnees = {}; try { donnees = JSON.parse(cur?.donnees || '{}'); } catch {}
+  if (b.donnees && typeof b.donnees === 'object') donnees = { ...donnees, ...b.donnees };
+  const s = JSON.stringify(donnees); if (s.length > 8000) throw new HttpError(400, 'Données trop volumineuses.');
+  const fait = Math.max(cur?.fait || 0, b.fait ? 1 : 0), etoiles = Math.max(cur?.etoiles || 0, Math.min(3, Math.max(0, +b.etoiles || 0)));
+  await env.DB.prepare(`INSERT INTO progression (eleve_id, notion, etape, fait, etoiles, donnees, updated_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+    ON CONFLICT(eleve_id, notion, etape) DO UPDATE SET fait = excluded.fait, etoiles = excluded.etoiles, donnees = excluded.donnees, updated_at = excluded.updated_at`)
+    .bind(id, txt(b.notion, 40), b.etape, fait, etoiles, s).run();
+  return json({ ok: true, fait, etoiles, donnees });
+}
+
+/* ---------- Fiche mémo : construite à partir des traces de l'élève ---------- */
+async function compilerFiche(env, eleveId, notion) {
+  if (!notion) throw new HttpError(400, 'Notion manquante.');
+  const [prog, rep] = await Promise.all([
+    env.DB.prepare("SELECT etape, donnees FROM progression WHERE eleve_id = ? AND notion = ? AND etape IN ('explorer','comprendre')").bind(eleveId, notion).all(),
+    env.DB.prepare("SELECT * FROM reponses WHERE eleve_id = ? AND notion = ? AND source IN ('entrainer','retenir') ORDER BY created_at, id").bind(eleveId, notion).all(),
+  ]);
+  const d = Object.fromEntries(prog.results.map((p) => [p.etape, JSON.parse(p.donnees || '{}')]));
+  const m = calculerMaitrise(rep.results);
+  const parV = {};
+  for (const r of rep.results) (parV[r.variante] ||= []).push(r);
+  const justifications = [], pieges = [], ancrer = [];
+  for (const [v, rs] of Object.entries(parV)) {
+    const bon = [...rs].reverse().find((r) => r.ok2 === 1);
+    if (bon && bon.juste) justifications.push({ question: bon.question, juste: bon.juste });
+    const faux = [...rs].reverse().find((r) => !r.ok1 || r.ok2 === 0);
+    if (faux) pieges.push({ variante: v, question: faux.question, choix: faux.choix, corrige: faux.corrige, juste: faux.juste, niveau: m[v].niveau, depuis: faux.created_at, revision: m[v].revision, corrigeDepuis: m[v].serie > 0 });
+    if (m[v].niveau < 4) ancrer.push({ variante: v, libelle: rs[rs.length - 1].libelle, niveau: m[v].niveau, revision: m[v].revision });
+  }
+  return {
+    regle: d.explorer?.regle || null, regleCorrigee: d.comprendre?.regleCorrigee || null,
+    exemples: d.comprendre?.exemples || [], justifications: justifications.slice(0, 8), pieges, ancrer,
+  };
 }
 
 async function eleveSeries(env, id, notion) {
