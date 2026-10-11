@@ -1,7 +1,7 @@
 // Maths par l'exemple : serveur (Cloudflare Worker + D1)
 // Les pages (public/) sont servies par Cloudflare ; ce Worker ne répond qu'aux routes /api/*.
 
-const NOTIONS_PAR_NIVEAU = { '6e': ['tables-multiplication'], '4e': ['ecriture-scientifique'], '2nde': ['entiers-naturels'] };
+const NOTIONS_PAR_NIVEAU = { '6e': ['table-2', 'table-3', 'table-4', 'table-5', 'table-6', 'table-7', 'table-8', 'table-9', 'tables-multiplication'], '4e': ['ecriture-scientifique'], '2nde': ['entiers-naturels'] };
 const ETAPES = ['explorer', 'comprendre', 'ensavoirplus', 'jouer', 'entrainer', 'retenir', 'plusloin'];
 const REGLAGES_DEFAUT = (niveau) => ({
   etapes: Object.fromEntries(ETAPES.map((e) => [e, true])),
@@ -424,7 +424,7 @@ async function enregistrerSerie(req, env, id) {
 
 async function enregistrerJeu(req, env, id) {
   const b = await body(req);
-  if (!b.notion || !['attrape', 'intrus'].includes(b.jeu) || !(+b.score >= 0)) throw new HttpError(400, 'Score invalide.');
+  if (!b.notion || !['attrape', 'intrus', 'relier', 'chrono'].includes(b.jeu) || !(+b.score >= 0)) throw new HttpError(400, 'Score invalide.');
   await env.DB.prepare('INSERT INTO jeux (eleve_id, notion, jeu, score) VALUES (?, ?, ?, ?)').bind(id, String(b.notion).slice(0, 40), b.jeu, Math.min(1000, Math.round(+b.score))).run();
   return json({ ok: true }, 201);
 }

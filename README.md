@@ -21,6 +21,8 @@ Notions disponibles :
 |---|---|
 | Les entiers naturels ℕ | 2nde |
 | L'écriture scientifique a × 10ⁿ | 4e |
+| Les tables de multiplication (révision ×) | 6e |
+| La table de 2, 3, … 9 (une notion par table, `public/js/notions/table.js`) | 6e |
 
 ## Architecture
 
