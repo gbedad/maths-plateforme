@@ -60,7 +60,7 @@ const ecrire = (sens, t, k) => (sens === 'tk' ? `${t} × ${k}` : `${k} × ${t}`)
 // Repères des textes venant de l'Excel : {calc} le calcul, {autre} le calcul retourné, {×N} t × N écrit dans le sens de l'élève, {t} {k} {r}
 const remplirRep = (txt, t, k, sens) => String(txt || '')
   .replace(/\{calc\}/g, ecrire(sens, t, k)).replace(/\{autre\}/g, ecrire(sens === 'tk' ? 'kt' : 'tk', t, k))
-  .replace(/\{×\s*(\d+)\}/g, (_, n) => ecrire(sens, t, +n)).replace(/\{t\}/g, t).replace(/\{k\}/g, k).replace(/\{r\}/g, t * k);
+  .replace(/\{\s*[×xX]\s*(\d+)\s*\}/g, (_, n) => ecrire(sens, t, +n)).replace(/\{t\}/g, t).replace(/\{k\}/g, k).replace(/\{r\}/g, t * k);
 // Séquence 1 : questions de l'Excel (feuille « Tables ») si l'enseignant en a importé, sinon le modèle par défaut
 function questionsSeq1(t, config) {
   const xl = Array.isArray(config?.sequence1) ? config.sequence1.filter((q) => FAITS.includes(q.k) && q.options?.some((o) => o.ok)) : [];
@@ -199,7 +199,7 @@ function explorerTable(t) {
               const pourquoi = o.expl || commentaire(o.cat, t, k, sens);
               const fois = strats.filter((c) => c === o.cat).length;
               const pref = fois >= 3 && fois % 3 === 0 && PHRASES_STRAT[o.cat] && !['zero', 'un', 'dix'].includes(o.cat) ? `C'est la ${fois}e fois que tu choisis cette méthode : c'est ta méthode préférée pour l'instant.` : '';
-              corps = `<b>${ok ? '✓ Bonne explication.' : '✓ Ta méthode est la bonne, mais le calcul a glissé : refais-le avec elle.'}</b>${pourquoi ? `<p>${esc(pourquoi)}</p>` : ''}${autreFacon ? `<p class="autre-facon"><span>Autre façon</span> ${esc(autreFacon.texte)}</p>` : ''}${pref ? `<p class="pref">${esc(pref)}</p>` : ''}`;
+              corps = `<b>${ok ? '✓ Bonne explication.' : '✓ Ta méthode est la bonne, mais le calcul a glissé : refais-le avec elle.'}</b>${pourquoi ? `<p>${esc(pourquoi)}</p>` : ''}${autreFacon && !o.expl ? `<p class="autre-facon"><span>Autre façon</span> ${esc(autreFacon.texte)}</p>` : ''}${pref ? `<p class="pref">${esc(pref)}</p>` : ''}`;
             } else {
               const bonne = autreFacon || opts.find((x) => x.ok);
               corps = `<b>✗ ${esc(o.expl)}</b>${bonne ? `<p class="autre-facon"><span>Une bonne façon</span> ${esc(bonne.texte)}</p>` : ''}`;
