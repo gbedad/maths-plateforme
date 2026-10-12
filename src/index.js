@@ -44,6 +44,7 @@ async function route(req, env, url) {
     await exigerSession(req, env, 'prof');
     if (p === '/api/prof/moi' && m === 'GET') return json({ role: 'prof' });
     if (p === '/api/prof/classes' && m === 'GET') return listerClasses(env);
+    if (p === '/api/prof/presence' && m === 'GET') return presenceClasses(env, url.searchParams.get('classe'));
     if (p === '/api/prof/classes' && m === 'POST') return creerClasse(req, env);
     if ((r = p.match(/^\/api\/prof\/classes\/(\d+)$/))) {
       if (m === 'GET') return detailClasse(env, +r[1]);
@@ -64,6 +65,7 @@ async function route(req, env, url) {
   if (p.startsWith('/api/eleve/')) {
     const s = await exigerSession(req, env, 'eleve');
     if (p === '/api/eleve/moi' && m === 'GET') return eleveMoi(env, s.id);
+    if (p === '/api/eleve/presence' && m === 'POST') return signalerPresence(req, env, s.id);
     if (p === '/api/eleve/series' && m === 'GET') return eleveSeries(env, s.id, url.searchParams.get('notion'));
     if (p === '/api/eleve/series' && m === 'POST') return enregistrerSerie(req, env, s.id);
     if (p === '/api/eleve/jeux' && m === 'POST') return enregistrerJeu(req, env, s.id);
@@ -133,6 +135,33 @@ function lireReglages(classe) {
   delete r.onglets;
   etapes.entrainer = true; // S'entraîner ne se masque pas
   return { ...d, ...r, etapes };
+}
+
+/* ---------- Présence : élèves en ligne ----------
+   La page de l'élève donne signe de vie toutes les minutes (notion et étape en cours).
+   « En ligne » = signe de vie depuis moins de 2 minutes. La colonne « activite » est créée au besoin. */
+const EN_LIGNE = "datetime('now', '-2 minutes')";
+let colonneActivite = false;
+async function assurerColonneActivite(env) {
+  if (colonneActivite) return;
+  try { await env.DB.prepare('ALTER TABLE eleves ADD COLUMN activite TEXT').run(); } catch { /* elle existe déjà */ }
+  colonneActivite = true;
+}
+async function signalerPresence(req, env, id) {
+  const b = await body(req);
+  await assurerColonneActivite(env);
+  const activite = `${txt(b.notion, 40)}|${txt(b.etape, 30)}`;
+  await env.DB.prepare("UPDATE eleves SET derniere_activite = datetime('now'), activite = ? WHERE id = ?").bind(activite, id).run();
+  return json({ ok: true });
+}
+async function presenceClasses(env, classe) {
+  await assurerColonneActivite(env);
+  if (classe) {
+    const { results } = await env.DB.prepare(`SELECT id, derniere_activite, activite, (derniere_activite >= ${EN_LIGNE}) AS en_ligne FROM eleves WHERE classe_id = ?`).bind(+classe).all();
+    return json(results);
+  }
+  const { results } = await env.DB.prepare(`SELECT classe_id, COUNT(*) AS n FROM eleves WHERE derniere_activite >= ${EN_LIGNE} GROUP BY classe_id`).all();
+  return json(Object.fromEntries(results.map((r) => [r.classe_id, r.n])));
 }
 
 async function listerClasses(env) {

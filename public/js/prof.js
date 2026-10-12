@@ -19,6 +19,7 @@ async function demarrer() {
   $('#loading').hidden = true; $('#login').hidden = true; $('#app').hidden = false; $('#who').hidden = false;
   await chargerClasses();
   aller(location.hash.slice(1) || 'classes');
+  majPresence();
 }
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault(); $('#lgErr').textContent = '';
@@ -29,9 +30,10 @@ $('#logout').addEventListener('click', async () => { await api('/api/logout', { 
 async function chargerClasses() { CLASSES = await api('/api/prof/classes'); renderNav(); }
 function renderNav() {
   $('#nav').innerHTML = `<button data-vue="classes">Mes classes</button>
-    ${CLASSES.length ? '<div class="sep">Classes</div>' : ''}${CLASSES.map((c) => `<button data-vue="classe-${c.id}"><span>${esc(c.nom)}</span><span class="pill">${esc(c.niveau)}</span></button>`).join('')}
+    ${CLASSES.length ? '<div class="sep">Classes</div>' : ''}${CLASSES.map((c) => `<button data-vue="classe-${c.id}"><span>${esc(c.nom)}</span><span class="enligne" data-cl="${c.id}" title="Élèves en ligne"></span><span class="pill">${esc(c.niveau)}</span></button>`).join('')}
     <div class="sep">Contenu</div><button data-vue="banque">Banque d'exercices</button><button data-vue="signalements">Signalements</button>`;
   $$('#nav button').forEach((b) => b.setAttribute('aria-current', b.dataset.vue === VUE));
+  afficherPresence();
 }
 $('#nav').addEventListener('click', (e) => { const b = e.target.closest('[data-vue]'); if (b) aller(b.dataset.vue); });
 function aller(vue) {
@@ -45,6 +47,38 @@ function aller(vue) {
 // Confirmation en deux clics (les boîtes de dialogue sont évitées)
 function confirmer(btn, texte) { if (btn.dataset.armed) return true; btn.dataset.armed = 1; const t = btn.textContent; btn.textContent = texte; setTimeout(() => { delete btn.dataset.armed; btn.textContent = t; }, 3000); return false; }
 
+/* ---------- Présence des élèves (mise à jour toutes les 30 secondes) ---------- */
+let PRES = {}, PRES_CLASSE = [];
+const dateUTC = (s) => (s ? new Date(String(s).replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z')) : null);
+function quand(s) {
+  const d = dateUTC(s); if (!d || isNaN(d)) return '<span class="mini">jamais connecté</span>';
+  const min = Math.round((Date.now() - d.getTime()) / 60000);
+  return `<span class="mini">${min < 60 ? `il y a ${Math.max(1, min)} min` : min < 24 * 60 ? `il y a ${Math.round(min / 60)} h` : dateFr(s)}</span>`;
+}
+function activiteTxt(a) {
+  const [n, e] = String(a || '').split('|');
+  if (n === 'moi') return 'Mon espace';
+  if (n === 'melange') return 'Tables mélangées';
+  const et = { parcours: 'Parcours', maitrise: 'Ma maîtrise' }[e] || ETAPES.find((x) => x.id === e)?.nom || '';
+  return [CATALOGUE[n]?.titreCourt || n, et].filter(Boolean).join(' · ');
+}
+function afficherPresence() {
+  $$('[data-cl]').forEach((x) => { const n = PRES[x.dataset.cl] || 0; x.textContent = n ? (x.classList.contains('long') ? `● ${n} en ligne` : `● ${n}`) : ''; });
+  for (const p of PRES_CLASSE) {
+    const td = $(`[data-pres="${p.id}"]`); if (!td) continue;
+    td.innerHTML = p.en_ligne ? `<span class="en-ligne">● En ligne</span><br><span class="mini">${esc(activiteTxt(p.activite))}</span>` : quand(p.derniere_activite);
+  }
+}
+async function majPresence() {
+  try {
+    PRES = await api('/api/prof/presence');
+    const m = String(VUE).match(/^classe-(\d+)$/);
+    PRES_CLASSE = m ? await api('/api/prof/presence?classe=' + m[1]) : [];
+    afficherPresence();
+  } catch { /* hors ligne : on réessaiera */ }
+}
+setInterval(() => { if (!document.hidden && CLASSES.length) majPresence(); }, 30000);
+
 /* ---------- Classes ---------- */
 function vueClasses() {
   $('#main').innerHTML = `
@@ -56,7 +90,8 @@ function vueClasses() {
     </form>
     <div class="kpis">${CLASSES.map((c) => `<button class="kpi" data-vue="classe-${c.id}" style="text-align:left;cursor:pointer;display:grid;gap:4px">
       <span class="k">${esc(c.niveau)}</span><span class="v" style="font-size:1.2rem">${esc(c.nom)}</span><span class="code" style="font-size:1.1rem">${esc(c.code)}</span>
-      <span style="color:var(--ink-soft);font-size:.85rem">${c.nb_eleves} élève${c.nb_eleves > 1 ? 's' : ''} · ${c.nb_series} série${c.nb_series > 1 ? 's' : ''}</span></button>`).join('') || '<div class="card empty">Aucune classe pour l\'instant.</div>'}</div>`;
+      <span style="color:var(--ink-soft);font-size:.85rem">${c.nb_eleves} élève${c.nb_eleves > 1 ? 's' : ''} · ${c.nb_series} série${c.nb_series > 1 ? 's' : ''}</span><span class="enligne long" data-cl="${c.id}"></span></button>`).join('') || '<div class="card empty">Aucune classe pour l\'instant.</div>'}</div>`;
+  afficherPresence();
   $('#main .kpis').addEventListener('click', (e) => { const b = e.target.closest('[data-vue]'); if (b) aller(b.dataset.vue); });
   $('#newClasse').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -88,13 +123,13 @@ async function vueClasse(id) {
   }).join('');
   $('#main').innerHTML = `
     <div class="head"><div class="eyebrow">Classe · ${esc(c.niveau)}</div><h1>${esc(c.nom)}</h1><p>Code à donner aux élèves : <span class="code">${esc(c.code)}</span></p></div>
-    <div class="kpis"><div class="kpi"><div class="k">Élèves</div><div class="v">${d.eleves.length}</div></div>
+    <div class="kpis"><div class="kpi"><div class="k">Élèves</div><div class="v">${d.eleves.length}</div><span class="enligne long" data-cl="${c.id}"></span></div>
       <div class="kpi"><div class="k">Compétences ancrées</div><div class="v">${o.atteint}</div></div>
       <div class="kpi"><div class="k">Objectif de classe</div><div class="bar" style="margin:10px 0 6px"><i style="width:${Math.min(100, (o.atteint / o.cible) * 100)}%"></i></div>
         <form id="objForm" class="inline-form" style="gap:6px"><label class="mini" for="objIn">Cible</label><input id="objIn" type="number" min="1" max="10000" value="${o.cible}" class="small-input" style="width:6em"><button class="btn sm ghost">Enregistrer</button></form></div></div>
     ${grilles || '<div class="card mini">La grille de maîtrise apparaîtra quand les élèves auront répondu à des questions.</div>'}
-    <div class="card"><h3>Élèves</h3>${d.eleves.length ? `<div class="tbl-wrap"><table><tr><th>Pseudo</th><th>Parties jouées</th><th>Dernière activité</th><th></th></tr>
-      ${d.eleves.map((e) => `<tr><td><b>${esc(e.pseudo)}</b>${e.a_pin ? '' : ' <span class="pill mid">code à choisir</span>'}</td><td>${d.parties[e.id] || 0}</td><td style="font-size:.85rem">${dateFr(e.derniere_activite)}</td>
+    <div class="card"><h3>Élèves</h3>${d.eleves.length ? `<div class="tbl-wrap"><table><tr><th>Pseudo</th><th>En ce moment</th><th>Parties jouées</th><th></th></tr>
+      ${d.eleves.map((e) => `<tr><td><b>${esc(e.pseudo)}</b>${e.a_pin ? '' : ' <span class="pill mid">code à choisir</span>'}</td><td class="pres" data-pres="${e.id}" style="font-size:.85rem">${quand(e.derniere_activite)}</td><td>${d.parties[e.id] || 0}</td>
       <td><div class="actions"><button class="btn sm ghost" data-pin="${e.id}">Réinitialiser le code</button><button class="btn sm danger" data-del="${e.id}">Supprimer</button></div></td></tr>`).join('')}</table></div>`
       : `<p style="color:var(--ink-soft);margin:0">Aucun élève connecté pour l'instant. Donne-leur le code <b>${esc(c.code)}</b> et l'adresse de la page d'accueil.</p>`}</div>
     <div class="card"><h3>Étapes visibles pour les élèves</h3><p class="mini" style="margin:0">Une étape masquée est sautée : elle ne bloque pas la suivante. S'entraîner reste toujours visible.</p>
@@ -109,6 +144,7 @@ async function vueClasse(id) {
         <span class="mini" id="mtEtat"></span></div></div>
     <div><button class="btn danger" id="delClasse">Supprimer la classe et ses résultats</button></div>`;
 
+  majPresence();
   const sauver = async (reglages) => { try { await api('/api/prof/classes/' + id, { method: 'PATCH', body: { reglages } }); toast('Réglage enregistré.'); } catch (e) { toast(e.message); } };
   $('#vis').addEventListener('change', async (e) => {
     const k = e.target.dataset.k; if (!k) return;
