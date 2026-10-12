@@ -476,6 +476,14 @@ export function creerTable(t) {
       ${Array.from({ length: 4 }, (_, i) => Array.from({ length: t }, (_, j) => `<circle cx="${120 - (t - 1) * 9 + j * 18}" cy="${30 + i * 18}" r="6" style="fill:var(--accent)"/>`).join('')).join('')}
       <text x="120" y="112" text-anchor="middle" style="font-family:var(--f-math);font-size:14px;fill:var(--ink-soft)">4 × ${t} = ${4 * t}</text></svg><p>4 rangées de ${t} points.</p>`,
     competences: FAITS.map((k) => ({ id: 'k' + k, variable: `${k} × ${t}` })),
+    descEtapes: {
+      explorer: `Reconstitue la table de ${t}, dis comment tu trouves chaque résultat, puis compte des nuages de points.`,
+      comprendre: `La table complète, le testeur « ce nombre est-il dans la table ? » et les pièges.`,
+      ensavoirplus: `Des techniques pour retrouver la table de ${t} sans tout apprendre par cœur.`,
+      jouer: 'Attrape les multiples, relie calculs et résultats, complète la table contre la montre.',
+      entrainer: '12 calculs à compléter, chronométrés.',
+      plusloin: `Au-delà de 12 × ${t} et deux défis.`,
+    },
     reglesEtoiles: { entrainer: ['Faire une série de 12 calculs', 'Au moins 9 calculs justes', 'Et répondre en moins de 5 secondes en moyenne'] },
     affiche: (s) => esc(s),
     explorerCustom: explorerTable(t),
