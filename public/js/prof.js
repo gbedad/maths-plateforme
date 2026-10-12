@@ -1,6 +1,6 @@
 // Espace enseignant (administrateur unique)
 import { $, $$, esc, api, toast, dateFr } from './outils.js';
-import { lireBanque, lireParcours } from './banque.js';
+import { lireBanque, lireParcours, lireTables } from './banque.js';
 import { ETAPES, NIVEAUX, COUL_NIV, ficheHTML } from './parcours.js';
 import { tirerQuestion } from './moteur.js';
 import naturels from './notions/entiers-naturels.js';
@@ -142,7 +142,7 @@ async function vueBanque() {
   $('#main').innerHTML = `
     <div class="head"><div class="eyebrow">Contenu</div><h1>Banque d'exercices</h1><p>Les exercices viennent de ton fichier Excel. Une ligne = une variante de question. Importer un fichier remplace les exercices des notions qu'il contient.</p></div>
     <div class="card"><h3>Importer un fichier Excel</h3>
-      <div class="drop"><input type="file" id="xl" accept=".xlsx,.xlsb,.xls" aria-label="Fichier Excel"><p style="margin:8px 0 0;font-size:.85rem">Formats acceptés : .xlsx, .xlsb, .xls. La première feuille est lue.</p></div>
+      <div class="drop"><input type="file" id="xl" accept=".xlsx,.xlsb,.xls" aria-label="Fichier Excel"><p style="margin:8px 0 0;font-size:.85rem">Formats acceptés : .xlsx, .xlsb, .xls. Feuilles lues : « Banque » (ou la première), « Parcours » et « Tables » (questions des tables de multiplication).</p></div>
       <div id="apercu"></div></div>
     ${banque.length ? banque.map(tableExercice).join('') : '<div class="card empty">La banque est vide. Importe ton fichier Excel ci-dessus.</div>'}`;
   $('#xl').addEventListener('change', lireFichier);
@@ -157,26 +157,42 @@ function tableExercice(ex) {
       <td>${v.pourquoi.length ? `<ol>${v.pourquoi.map((t, k) => `<li class="${k === v.juste ? 'right' : ''}">${esc(t)}</li>`).join('')}</ol>` : '<small style="color:var(--ink-soft)">Pas de « Pourquoi ? » : oui/non seulement</small>'}</td></tr>`; }).join('')}
     </table></div></div>`;
 }
+function tableSeq1(n, qs) {
+  const t = +n.split('-')[1];
+  return `<div class="card"><div class="eyebrow">${esc(CATALOGUE[n]?.titreCourt || n)} · Explorer, séquence 1</div>
+    <div class="tbl-wrap"><table><tr><th>Ordre</th><th>Calcul</th><th>Pourquoi ? (justes en vert)</th></tr>
+    ${qs.map((q, i) => `<tr><td>${i + 1}</td><td class="m">${t} × ${q.k} = ${t * q.k}</td><td><ol>${q.options.map((o) => `<li class="${o.ok ? 'right' : ''}">${esc(o.texte)}${!o.ok && o.expl ? `<br><small style="color:var(--ink-soft)">Si choisi : ${esc(o.expl)}</small>` : ''}</li>`).join('')}</ol></td></tr>`).join('')}
+    </table></div></div>`;
+}
 async function lireFichier(e) {
   const f = e.target.files[0]; if (!f) return;
   const out = $('#apercu');
   if (!window.XLSX) { out.innerHTML = '<p class="err" style="margin-top:12px">Le lecteur de fichiers Excel ne s’est pas chargé. Recharge la page (Ctrl + Maj + R) puis réessaie.</p>'; return; }
   try {
     const wb = window.XLSX.read(await f.arrayBuffer(), { type: 'array' });
-    const rows = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
-    IMPORT = lireBanque(rows);
-    const fp = wb.SheetNames.find((n) => n.trim().toLowerCase() === 'parcours');
-    IMPORT.config = fp ? lireParcours(window.XLSX.utils.sheet_to_json(wb.Sheets[fp], { header: 1, defval: '' })) : {};
+    const feuille = (nom) => { const n = wb.SheetNames.find((x) => x.trim().toLowerCase() === nom); return n ? window.XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '' }) : null; };
+    // Feuille « Tables » : questions de la séquence 1 des tables de multiplication
+    const tb = lireTables(feuille('tables'));
+    // Banque : la feuille « Banque », sinon la première feuille (si ce n'est pas « Tables »)
+    const nomBanque = wb.SheetNames.find((x) => x.trim().toLowerCase() === 'banque') || (wb.SheetNames[0].trim().toLowerCase() !== 'tables' ? wb.SheetNames[0] : null);
+    if (nomBanque) {
+      try { IMPORT = lireBanque(window.XLSX.utils.sheet_to_json(wb.Sheets[nomBanque], { header: 1, defval: '' })); }
+      catch (err) { if (!Object.keys(tb.config).length) throw err; IMPORT = { exercices: [], avertissements: [] }; }
+    } else IMPORT = { exercices: [], avertissements: [] };
+    IMPORT.config = lireParcours(feuille('parcours'));
+    for (const [n, c] of Object.entries(tb.config)) IMPORT.config[n] = { ...(IMPORT.config[n] || {}), ...c };
+    IMPORT.avertissements.push(...tb.avertissements);
+    if (!IMPORT.exercices.length && !Object.keys(tb.config).length) throw new Error('Aucune question valide trouvée dans ce fichier.');
     const inconnues = IMPORT.exercices.filter((x) => !CATALOGUE[x.notion]).map((x) => x.notion);
-    out.innerHTML = `<div class="verdict ${IMPORT.avertissements.length ? '' : 'yes'}" style="margin-top:14px"><div class="v">${IMPORT.exercices.length} exercice(s) trouvé(s) dans « ${esc(f.name)} »</div>
-      ${Object.entries(IMPORT.config).map(([n, c]) => `${esc(CATALOGUE[n]?.titreCourt || n)} : Explorer s'ouvre vers Comprendre après ${c.seuilExplorer} bonnes réponses`).join('<br>')}${Object.keys(IMPORT.config).length ? '<br>' : ''}
+    out.innerHTML = `<div class="verdict ${IMPORT.avertissements.length ? '' : 'yes'}" style="margin-top:14px"><div class="v">${IMPORT.exercices.length ? `${IMPORT.exercices.length} exercice(s) trouvé(s)` : 'Questions des tables trouvées'} dans « ${esc(f.name)} »</div>
+      ${Object.entries(IMPORT.config).map(([n, c]) => [c.seuilExplorer ? `${esc(CATALOGUE[n]?.titreCourt || n)} : Explorer s'ouvre vers Comprendre après ${c.seuilExplorer} bonnes réponses` : '', c.sequence1 ? `${esc(CATALOGUE[n]?.titreCourt || n)} : ${c.sequence1.length} question(s) pour la séquence 1 d'Explorer (${c.sequence1.reduce((a, q) => a + q.options.length, 0)} choix de « Pourquoi ? »)` : ''].filter(Boolean).join('<br>')).join('<br>')}${Object.keys(IMPORT.config).length ? '<br>' : ''}
       ${IMPORT.exercices.map((x) => `${esc(CATALOGUE[x.notion]?.titreCourt || x.notion)} n°${x.numero} : ${x.variantes.length} variantes, ${x.variantes.reduce((a, v) => a + v.occ, 0)} questions par série`).join('<br>')}
       ${inconnues.length ? `<p class="err">Notion inconnue de la plateforme : ${esc(inconnues.join(', '))}. Ces exercices seront enregistrés mais pas affichés.</p>` : ''}
       ${IMPORT.avertissements.length ? `<p style="margin:10px 0 4px;font-weight:600">À vérifier :</p><ul style="margin:0;padding-left:20px">${IMPORT.avertissements.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>
       <div class="actions" style="margin-top:12px"><button class="btn" id="saveImport">Enregistrer dans la plateforme</button><button class="btn ghost" id="cancelImport">Annuler</button></div>
-      ${IMPORT.exercices.map(tableExercice).join('')}`;
+      ${IMPORT.exercices.map(tableExercice).join('')}${Object.entries(IMPORT.config).filter(([, c]) => c.sequence1).map(([n, c]) => tableSeq1(n, c.sequence1)).join('')}`;
     $('#saveImport').addEventListener('click', async () => {
-      try { const r = await api('/api/prof/banque', { method: 'PUT', body: { exercices: IMPORT.exercices, config: IMPORT.config } }); toast(`${r.nb} exercice(s) enregistré(s).`); IMPORT = null; BANQUE = null; vueBanque(); } catch (err) { toast(err.message); }
+      try { const r = await api('/api/prof/banque', { method: 'PUT', body: { exercices: IMPORT.exercices, config: IMPORT.config } }); toast(r.nb ? `${r.nb} exercice(s) enregistré(s).` : 'Questions des tables enregistrées.'); IMPORT = null; BANQUE = null; vueBanque(); } catch (err) { toast(err.message); }
     });
     $('#cancelImport').addEventListener('click', () => { IMPORT = null; vueBanque(); });
   } catch (err) { out.innerHTML = `<p class="err" style="margin-top:12px">${esc(err.message)}</p>`; }

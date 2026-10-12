@@ -96,3 +96,43 @@ export function lireParcours(rows) {
   }
   return config;
 }
+
+/** Feuille « Tables » (facultative) : questions de la séquence 1 d'Explorer pour les tables de multiplication.
+ *  Une ligne = un choix de réponse au « Pourquoi ? ». Les lignes d'une même question partagent Notion + Facteur. */
+const STRATEGIES = ['ajout', 'retrait', 'commute', 'double', 'moitie10', 'dixplus', 'coeur', 'pose', 'zero', 'un', 'dix'];
+export function lireTables(rows) {
+  const config = {}, avertissements = [];
+  if (!rows || !rows.length) return { config, avertissements };
+  const h = (rows[0] || []).map(norm);
+  const col = (...noms) => h.findIndex((x) => noms.some((n) => x.startsWith(n)));
+  const c = { notion: col('notion'), ordre: col('ordre'), k: col('facteur'), texte: col('texte'), juste: col('juste'), strat: col('strategie'), expl: col('explication') };
+  if (c.notion < 0 || c.k < 0 || c.texte < 0 || c.juste < 0) throw new Error('Feuille « Tables » : il faut au moins les colonnes Notion, Facteur, Texte du choix et Juste.');
+  const qs = new Map();
+  rows.slice(1).forEach((r, i) => {
+    const ligne = i + 2, notion = String(r[c.notion] ?? '').trim(), texte = String(r[c.texte] ?? '').trim();
+    if (!notion || !texte) return;
+    if (!/^table-[2-9]$/.test(notion)) { avertissements.push(`Tables, ligne ${ligne} : notion « ${notion} » inconnue (table-2 à table-9).`); return; }
+    const k = parseInt(r[c.k], 10);
+    if (!(k >= 0 && k <= 12)) { avertissements.push(`Tables, ligne ${ligne} : le facteur doit être un nombre de 0 à 12.`); return; }
+    const j = norm(r[c.juste]);
+    if (!['oui', 'non'].includes(j)) { avertissements.push(`Tables, ligne ${ligne} : la colonne « Juste » doit contenir oui ou non.`); return; }
+    let cat = c.strat >= 0 ? norm(r[c.strat]) : '';
+    if (cat && !STRATEGIES.includes(cat)) { avertissements.push(`Tables, ligne ${ligne} : stratégie « ${cat} » inconnue, elle ne comptera pas dans la fiche mémo.`); cat = ''; }
+    const cle = `${notion}|${k}`;
+    if (!qs.has(cle)) qs.set(cle, { notion, k, ordre: parseInt(r[c.ordre], 10) || 99, options: [] });
+    const q = qs.get(cle);
+    if (q.options.length >= 6) { avertissements.push(`Tables, ligne ${ligne} : 6 choix au maximum par question, ligne ignorée.`); return; }
+    q.options.push({ texte, ok: j === 'oui', ...(cat ? { cat } : {}), ...(c.expl >= 0 && String(r[c.expl] ?? '').trim() ? { expl: String(r[c.expl]).trim() } : {}) });
+  });
+  for (const q of qs.values()) {
+    if (!q.options.some((o) => o.ok)) { avertissements.push(`Tables, ${q.notion} × ${q.k} : aucun choix marqué juste, la question garde le modèle par défaut.`); continue; }
+    if (q.options.length < 2) avertissements.push(`Tables, ${q.notion} × ${q.k} : un seul choix, l'élève n'aura pas à réfléchir.`);
+    (config[q.notion] ||= { sequence1: [] }).sequence1.push({ k: q.k, ordre: q.ordre, options: q.options });
+  }
+  for (const [n, v] of Object.entries(config)) {
+    v.sequence1.sort((a, b) => a.ordre - b.ordre);
+    const manquants = [...Array(13).keys()].filter((k) => !v.sequence1.some((q) => q.k === k));
+    if (manquants.length) avertissements.push(`Tables, ${n} : pas de question pour × ${manquants.join(', × ')} ; le modèle par défaut sera utilisé pour ${manquants.length > 1 ? 'ces facteurs' : 'ce facteur'}.`);
+  }
+  return { config, avertissements };
+}
