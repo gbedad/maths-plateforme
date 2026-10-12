@@ -72,7 +72,7 @@ async function vueClasse(id) {
   $('#main').innerHTML = '<div class="loading">Chargement…</div>';
   let d, bq; try { [d, bq] = await Promise.all([api('/api/prof/classes/' + id), banque()]); } catch (e) { $('#main').innerHTML = `<div class="card">${esc(e.message)}</div>`; return; }
   const c = d.classe, r = c.reglages, o = d.objectif;
-  const notions = r.notions.filter((n) => CATALOGUE[n]);
+  const notions = [...new Set([...r.notions, ...((r.melange?.tables || []).map((t) => `table-${t}`))])].filter((n) => CATALOGUE[n]);
   const vars = (n) => { const v = bq.filter((x) => x.notion === n).flatMap((x) => x.variantes); return v.length ? v : (CATALOGUE[n].competences || []); };
   const etapesFaites = (eid, n) => { const p = (d.etapes[eid] || {})[n] || {}; return { faites: ETAPES.filter((e) => p[e.id]?.fait).length, etoiles: ETAPES.reduce((a, e) => a + (p[e.id]?.etoiles || 0), 0) }; };
   const grilles = notions.map((n) => {
@@ -101,6 +101,12 @@ async function vueClasse(id) {
       <div class="vis" id="vis">${ETAPES.filter((e) => e.id !== 'entrainer').map((e) => `<label class="vrow"><input type="checkbox" data-k="${e.id}" ${r.etapes[e.id] !== false ? 'checked' : ''}><span><b>${e.nom}</b><small>${esc(e.desc)}</small></span></label>${e.id === 'comprendre' ? `<label class="vrow sub" style="${r.etapes.comprendre !== false ? 'opacity:.5' : ''}"><input type="checkbox" data-k="auto" ${r.auto ? 'checked' : ''} ${r.etapes.comprendre !== false ? 'disabled' : ''}><span><b>Dévoiler « Comprendre » après 2 erreurs</b><small>Si l'étape est masquée, elle s'ouvre pour l'élève dès qu'il se trompe deux fois dans une série.</small></span></label>` : ''}`).join('')}</div>
       <h3 style="margin-top:18px">Notions ouvertes</h3><p class="mini" style="margin:0">Dans l'ordre : chaque notion s'ouvre quand l'élève a fini le parcours de la précédente.</p>
       <div class="vis" id="notions">${Object.values(CATALOGUE).map((n) => `<label class="vrow"><input type="checkbox" data-n="${n.id}" ${r.notions.includes(n.id) ? 'checked' : ''}><span><b>${n.titreCourt}</b><small>${n.niveau} · ${n.sousTheme}</small></span></label>`).join('')}</div></div>
+    <div class="card" id="melangeCard"><h3>Tables mélangées</h3>
+      <p class="mini" style="margin:0 0 10px">Un entraînement en plus des parcours : des calculs tirés au hasard dans les tables cochées. Il apparaît en haut de la carte des élèves. Chaque calcul compte pour la maîtrise de sa table. Aucune table cochée : l'entraînement est masqué.</p>
+      <div class="tables-choix"><label class="tc tous"><input type="checkbox" data-mt="toutes" ${(r.melange?.tables || []).length === 8 ? 'checked' : ''}><span>Toutes</span></label>
+        ${[2, 3, 4, 5, 6, 7, 8, 9].map((t) => `<label class="tc"><input type="checkbox" data-mt="${t}" ${(r.melange?.tables || []).includes(t) ? 'checked' : ''}><span>× ${t}</span></label>`).join('')}</div>
+      <div class="row" style="margin-top:12px;gap:8px;align-items:center"><label for="mtNb" class="mini">Calculs par série</label><select id="mtNb">${[10, 12, 20, 30].map((n) => `<option ${(r.melange?.nb || 12) === n ? 'selected' : ''}>${n}</option>`).join('')}</select>
+        <span class="mini" id="mtEtat"></span></div></div>
     <div><button class="btn danger" id="delClasse">Supprimer la classe et ses résultats</button></div>`;
 
   const sauver = async (reglages) => { try { await api('/api/prof/classes/' + id, { method: 'PATCH', body: { reglages } }); toast('Réglage enregistré.'); } catch (e) { toast(e.message); } };
@@ -115,6 +121,17 @@ async function vueClasse(id) {
     if (!n.length) { toast('Garde au moins une notion ouverte.'); aller(VUE); return; }
     r.notions = n; await sauver({ notions: n });
   });
+  // Tables mélangées
+  const majMel = async (e) => {
+    const t = e?.target?.dataset?.mt;
+    if (t === 'toutes') $$('#melangeCard [data-mt]').forEach((c) => (c.checked = e.target.checked));
+    const tables = $$('#melangeCard [data-mt]:checked').map((c) => c.dataset.mt).filter((x) => x !== 'toutes').map(Number);
+    $('#melangeCard [data-mt="toutes"]').checked = tables.length === 8;
+    r.melange = { tables, nb: +$('#mtNb').value };
+    $('#mtEtat').textContent = tables.length ? `Visible par les élèves : ${tables.length === 8 ? 'toutes les tables' : 'tables ' + tables.join(', ')}.` : 'Masqué pour les élèves.';
+    if (e) await sauver({ melange: r.melange });
+  };
+  $('#melangeCard').addEventListener('change', majMel); majMel();
   $('#objForm').addEventListener('submit', async (e) => { e.preventDefault(); const v = parseInt($('#objIn').value, 10); if (v > 0) { await sauver({ objectif: v }); vueClasse(id); } });
   $('#main').onclick = async (e) => {
     const pin = e.target.closest('[data-pin]'), del = e.target.closest('[data-del]'), fi = e.target.closest('[data-fiche]');

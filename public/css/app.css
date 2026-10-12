@@ -534,3 +534,13 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .why-verdict p{margin:6px 0 0;font-weight:400;color:var(--ink)}
 .why-verdict .autre-facon span{display:inline-block;margin-right:6px;padding:1px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-size:.78rem;font-weight:700;color:var(--ink-soft)}
 .why-verdict .pref{font-style:italic;color:var(--ink-soft)}
+
+/* Tables mélangées : choix des tables (enseignant) */
+.tables-choix{display:flex;flex-wrap:wrap;gap:8px}
+.tables-choix .tc{position:relative;cursor:pointer}
+.tables-choix .tc input{position:absolute;opacity:0;pointer-events:none}
+.tables-choix .tc span{display:inline-block;min-width:56px;padding:8px 12px;border-radius:10px;border:1.5px solid var(--border);background:var(--surface);font-family:var(--f-math);font-weight:700;text-align:center}
+.tables-choix .tc.tous span{font-family:inherit}
+.tables-choix .tc input:checked + span{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.tables-choix .tc input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.notion.melange .sym{font-size:1.1rem}

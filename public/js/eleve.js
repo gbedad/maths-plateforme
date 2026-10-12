@@ -5,7 +5,7 @@ import { ETAPES, REGLES_ETOILES, NIVEAUX, COUL_NIV, REGLE_NIV, etatEtapes, etoil
 import naturels from './notions/entiers-naturels.js';
 import scientifique from './notions/ecriture-scientifique.js';
 import tables from './notions/tables-multiplication.js';
-import { TABLES } from './notions/table.js';
+import { TABLES, serieMelangee } from './notions/table.js';
 
 const CATALOGUE = { ...Object.fromEntries(TABLES.map((x) => [x.id, x])), [tables.id]: tables, [scientifique.id]: scientifique, [naturels.id]: naturels };
 const LET = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
@@ -41,11 +41,13 @@ document.addEventListener('click', async (e) => {
   if (e.target.id === 'logout') { await api('/api/logout', { method: 'POST' }).catch(() => {}); location.reload(); }
   const go = e.target.closest('[data-go]');
   if (go) { e.preventDefault(); const v = go.dataset.go; if (v === 'parcours') vueParcours(); else if (v === 'maitrise') vueMaitrise(); else if (v === 'moi') vueMoi(); else ouvrirEtape(v); }
+  if (e.target.closest('[data-melange]')) { vueMelange(); return; }
   const nt = e.target.closest('[data-notion]');
   if (nt && !nt.disabled) choisirNotion(nt.dataset.notion);
 });
 
 /* ---------- État ---------- */
+let VUE_MELANGE = false; // l'élève est sur « Tables mélangées »
 const progDe = (id) => Object.fromEntries(ME.progression.filter((p) => p.notion === id).map((p) => [p.etape, p]));
 const etatDe = (id, reveles = {}) => etatEtapes(progDe(id), ME.classe.reglages.etapes, reveles);
 function notionOuverte(id) { const i = DISPO.indexOf(id); return i <= 0 || etatDe(DISPO[i - 1]).termine; }
@@ -90,11 +92,15 @@ function renderEntete() {
   $('#who').innerHTML = `<span class="week" aria-label="${actifs} jour${actifs > 1 ? 's' : ''} actif${actifs > 1 ? 's' : ''} cette semaine">${ME.semaine.map((a, i) => `<span class="${a ? 'on' : ''}">${JOURS[i]}</span>`).join('')}</span>
     <button class="linkbtn moi-btn" data-go="moi" title="Mon espace : mes notions, mes badges"><b>${esc(ME.eleve.pseudo)}</b> · ${esc(ME.classe.nom)}</button><button class="linkbtn" id="logout">Se déconnecter</button>`;
 }
+// Réglage de l'enseignant : tables mélangées (null si aucune table cochée)
+const melange = () => { const m = ME.classe.reglages.melange; return m && Array.isArray(m.tables) && m.tables.length ? { tables: [...m.tables].sort((a, b) => a - b), nb: m.nb || 12 } : null; };
+const listeTables = (ts) => ts.length === 8 ? 'toutes les tables' : ts.length === 1 ? `la table de ${ts[0]}` : `les tables ${ts.slice(0, -1).join(', ')} et ${ts[ts.length - 1]}`;
 function renderCarte() {
-  $('#carte').innerHTML = DISPO.map((id) => {
+  const m = melange();
+  $('#carte').innerHTML = (m ? `<li><button class="notion melange ${VUE_MELANGE ? 'active' : ''}" data-melange="1"><span class="sym">×?</span><span class="nm">Tables mélangées<span>${m.tables.length === 8 ? 'Toutes les tables' : 'Tables ' + m.tables.join(', ')} · ${m.nb} calculs</span></span><span class="tag"></span></button></li>` : '') + DISPO.map((id) => {
     const n = CATALOGUE[id], ouv = notionOuverte(id), et = etatDe(id), etoiles = et.etapes.reduce((a, e) => a + (e.etoiles || 0), 0);
     const txt = !ouv ? "S'ouvre à la fin de la notion précédente" : et.termine ? `Parcours terminé · ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur 9` : `En cours · ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur 9`;
-    return `<li><button class="notion ${id === N.id ? 'active' : ''}" data-notion="${id}" ${ouv ? '' : 'disabled'}><span class="sym" style="${n.symbole.length > 2 ? 'font-size:1rem' : ''}">${n.symbole}</span><span class="nm">${n.titreCourt}<span>${txt}</span></span><span class="tag">${ouv ? '' : 'Bientôt'}</span></button></li>`;
+    return `<li><button class="notion ${id === N.id && !VUE_MELANGE ? 'active' : ''}" data-notion="${id}" ${ouv ? '' : 'disabled'}><span class="sym" style="${n.symbole.length > 2 ? 'font-size:1rem' : ''}">${n.symbole}</span><span class="nm">${n.titreCourt}<span>${txt}</span></span><span class="tag">${ouv ? '' : 'Bientôt'}</span></button></li>`;
   }).join('') + N.parcours.filter((p) => !p.id).map((p) => `<li><button class="notion" disabled><span class="sym" style="${p.sym.length > 2 ? 'font-size:1rem' : ''}">${p.sym}</span><span class="nm">${p.nom}<span>Pas encore disponible</span></span><span class="tag">Bientôt</span></button></li>`).join('');
 }
 function renderObjectif() {
@@ -297,7 +303,11 @@ function ensavoirplus(root) {
 
 /* ---------- 4. Jouer ---------- */
 const G1 = { running: false }, G2 = {};
-function stopJeux() { clearInterval(G1.spawn); clearInterval(G1.timer); G1.running = false; clearInterval(G2.tick); }
+function stopJeux() {
+  clearInterval(G1.spawn); clearInterval(G1.timer); G1.running = false; clearInterval(G2.tick);
+  const m = $('#melange'); if (m) clearInterval(m._tick);
+  if (VUE_MELANGE) { VUE_MELANGE = false; renderCarte(); }
+}
 function jouer(root) {
   const extras = N.jeuxExtra || [];
   root.innerHTML = `
@@ -597,6 +607,23 @@ function vueMoi() {
         <span class="mini">${et.termine ? 'Parcours terminé' : 'En cours'} · <span class="stars">★</span> ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur 9</span>
         <span class="mini">${b.maitrisees} maîtrisée${b.maitrisees > 1 ? 's' : ''} sur ${b.total} · ${pluriel(b.ancrees, 'ancrée')}${b.aReviser ? ` · <b class="a-reviser">${b.aReviser} à réviser</b>` : ''}</span></span></button>`; }).join('')}</div></section>
     <section><h3 style="margin:22px 0 10px">Mes badges</h3><div class="badges">${ME.badges.map((b) => `<div class="badge ${b.got ? 'got' : ''}"><span class="medal" aria-hidden="true">${b.got ? '★' : '☆'}</span><b>${esc(b.nom)}</b><span class="mini">${esc(b.desc)}</span><span class="pill ${b.got ? 'ok' : ''}">${b.got ? 'Obtenu' : esc(b.prog || 'À obtenir')}</span></div>`).join('')}</div></section>`;
+  window.scrollTo({ top: 0 });
+}
+
+/* ---------- Tables mélangées (réglées par l'enseignant) ---------- */
+function vueMelange() {
+  const m = melange(); if (!m) return vueParcours();
+  stopJeux(); VUE_MELANGE = true; renderCarte();
+  main().innerHTML = `
+    <div class="head"><div class="eyebrow">Entraînement</div><h1>Tables mélangées <span class="m">×?</span></h1>
+      <p>${m.nb} calculs tirés au hasard dans ${listeTables(m.tables)}. Réponds juste, puis de plus en plus vite. Chaque calcul compte pour la maîtrise de sa table.</p></div>
+    <div class="card" id="melange"><div class="answers"><button class="btn" id="goMel">Commencer la série</button></div></div>`;
+  $('#goMel').onclick = () => lancer();
+  const lancer = () => serieMelangee($('#melange'), m.tables, m.nb, { api, toast, onFin: async () => {
+    $('#melange').insertAdjacentHTML('beforeend', '<div class="answers" style="margin-top:14px"><button class="btn" id="againMel">Nouvelle série</button></div>');
+    $('#againMel').onclick = () => lancer();
+    try { await charger(); MAIT = ME.maitrise[N.id] || {}; renderEntete(); renderObjectif(); } catch {}
+  } });
   window.scrollTo({ top: 0 });
 }
 
