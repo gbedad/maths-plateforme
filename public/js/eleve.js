@@ -40,7 +40,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
 document.addEventListener('click', async (e) => {
   if (e.target.id === 'logout') { await api('/api/logout', { method: 'POST' }).catch(() => {}); location.reload(); }
   const go = e.target.closest('[data-go]');
-  if (go) { e.preventDefault(); const v = go.dataset.go; if (v === 'parcours') vueParcours(); else if (v === 'maitrise') vueMaitrise(); else ouvrirEtape(v); }
+  if (go) { e.preventDefault(); const v = go.dataset.go; if (v === 'parcours') vueParcours(); else if (v === 'maitrise') vueMaitrise(); else if (v === 'moi') vueMoi(); else ouvrirEtape(v); }
   const nt = e.target.closest('[data-notion]');
   if (nt && !nt.disabled) choisirNotion(nt.dataset.notion);
 });
@@ -88,7 +88,7 @@ function renderEntete() {
   $('.brand .logo').textContent = N.symbole.length > 2 ? 'ℕ' : N.symbole;
   const actifs = ME.semaine.filter(Boolean).length;
   $('#who').innerHTML = `<span class="week" aria-label="${actifs} jour${actifs > 1 ? 's' : ''} actif${actifs > 1 ? 's' : ''} cette semaine">${ME.semaine.map((a, i) => `<span class="${a ? 'on' : ''}">${JOURS[i]}</span>`).join('')}</span>
-    <span><b>${esc(ME.eleve.pseudo)}</b> · ${esc(ME.classe.nom)}</span><button class="linkbtn" id="logout">Se déconnecter</button>`;
+    <button class="linkbtn moi-btn" data-go="moi" title="Mon espace : mes notions, mes badges"><b>${esc(ME.eleve.pseudo)}</b> · ${esc(ME.classe.nom)}</button><button class="linkbtn" id="logout">Se déconnecter</button>`;
 }
 function renderCarte() {
   $('#carte').innerHTML = DISPO.map((id) => {
@@ -120,6 +120,32 @@ function apercuMaitrise() {
 // Libellé court d'une compétence pour la pastille (« 7 × 8 » → « 7 ») ; sinon pastille sans texte (le libellé est dans l'info-bulle)
 const courte = (lib) => { const m = String(lib).match(/^(\d+) × \d+$/); return m ? m[1] : ''; };
 
+// Description d'une étape : la notion peut la préciser (ex. tables de multiplication)
+const descEtape = (e) => N.descEtapes?.[e.id] || e.desc;
+
+// Compter les compétences d'une notion : maîtrisées, ancrées, à réviser maintenant
+function bilanNotion(id) {
+  const vs = id === N.id ? variantes() : (ME.exercices.some((x) => x.notion === id) ? ME.exercices.filter((x) => x.notion === id).flatMap((x) => x.variantes) : (CATALOGUE[id].competences || []));
+  const m = ME.maitrise[id] || {}, now = Date.now();
+  const niv = (v) => m[v.id]?.niveau || 0;
+  const aReviser = vs.filter((v) => niv(v) >= 1 && niv(v) < 4 && m[v.id].revision && new Date(m[v.id].revision).getTime() <= now);
+  const prochaines = vs.filter((v) => niv(v) >= 1 && niv(v) < 4 && m[v.id].revision).map((v) => m[v.id].revision).sort();
+  return { total: vs.length, maitrisees: vs.filter((v) => niv(v) >= 3).length, ancrees: vs.filter((v) => niv(v) >= 4).length, aReviser: aReviser.length, prochaine: prochaines[0] || null };
+}
+const pluriel = (n, mot) => `${n} ${mot}${n > 1 ? 's' : ''}`;
+
+// Fin de parcours : un bilan court et l'action utile (réviser)
+function bilanFin() {
+  const b = bilanNotion(N.id);
+  const ligne = `${b.maitrisees} compétence${b.maitrisees > 1 ? 's' : ''} maîtrisée${b.maitrisees > 1 ? 's' : ''} sur ${b.total}${b.ancrees ? `, dont ${pluriel(b.ancrees, 'ancrée')}` : ''}.`;
+  const action = b.aReviser
+    ? `<span class="mini">${pluriel(b.aReviser, 'compétence')} à réviser maintenant pour ${b.aReviser > 1 ? 'les ' : "l'"}ancrer.</span></div><button class="btn" data-go="retenir">Réviser maintenant →</button>`
+    : b.ancrees === b.total && b.total
+      ? `<span class="mini">Tout est ancré. Bravo ! Tu peux passer à la notion suivante ou relever les défis.</span></div><button class="btn ghost" data-go="plusloin">Aller plus loin</button>`
+      : `<span class="mini">${b.prochaine ? `Prochaine révision ${dansJours(b.prochaine)}.` : 'Entraîne-toi pour faire monter tes compétences.'} En attendant, tu peux refaire n'importe quelle étape.</span></div><button class="btn ghost" data-go="${b.prochaine ? 'retenir' : 'entrainer'}">${b.prochaine ? 'Voir Retenir' : "S'entraîner"}</button>`;
+  return `<div class="next-banner fin"><div><b>Parcours terminé · ${ligne}</b>${action}</div>`;
+}
+
 /* ---------- Vue parcours ---------- */
 function vueParcours() {
   stopJeux();
@@ -129,15 +155,15 @@ function vueParcours() {
       <h1>${N.titre} <span class="m">${N.symbole.replace('×10ⁿ', 'a × 10ⁿ')}</span></h1>
       ${onglets('parcours')}
       <p>Sept étapes, chacune ouvre la suivante. Les quatre premières se font librement, sans note ni étoile. À partir de S'entraîner, chaque étape rapporte jusqu'à trois étoiles.</p></div>
-    ${cur ? `<div class="next-banner"><div><b>Prochaine étape : ${cur.nom}</b><span class="mini">${esc(cur.desc)}</span></div><button class="btn" data-go="${cur.id}">Continuer →</button></div>`
-      : `<div class="next-banner"><div><b>Parcours terminé</b><span class="mini">Tu peux refaire chaque étape quand tu veux, et réviser dans Retenir.</span></div></div>`}
+    ${cur ? `<div class="next-banner"><div><b>Prochaine étape : ${cur.nom}</b><span class="mini">${esc(descEtape(cur))}</span></div><button class="btn" data-go="${cur.id}">Continuer →</button></div>`
+      : bilanFin()}
     <ol class="parcours">${et.etapes.filter((e) => e.visible).map((e, i) => {
       const st = e.fait ? 'fait' : e.courant ? 'cours' : e.ouvert ? 'ouvert' : 'verrou';
       const lab = { fait: 'Terminé', cours: 'À faire maintenant', ouvert: 'Ouvert', verrou: 'Verrouillé' }[st];
       return `<li class="etape ${st}"><span class="node">${e.fait ? '✓' : i + 1}</span>
         <button class="etape-card" data-go="${e.id}" ${e.ouvert ? '' : 'disabled'}>
           <span class="etape-l1"><b>${e.nom}</b>${e.etoiles !== false && ETAPES.find((x) => x.id === e.id).etoiles ? etoilesHTML(e.etoiles) : ''}</span>
-          <span class="mini">${esc(e.desc)}</span><span class="pill">${lab}</span></button></li>`;
+          <span class="mini">${esc(descEtape(e))}</span><span class="pill">${lab}</span></button></li>`;
     }).join('')}</ol>
     ${apercuMaitrise()}`;
   window.scrollTo({ top: 0 });
@@ -551,7 +577,26 @@ function vueMaitrise() {
     <div class="niveaux">${[1, 2, 3, 4].map((n) => `<div class="card"><b><span class="dotn" style="background:${COUL_NIV[n]}"></span>${NIVEAUX[n]}</b><span class="mini">${REGLE_NIV[n]}</span></div>`).join('')}</div>
     <section class="card"><h3>Mes compétences</h3>${vs.length ? vs.map((v) => { const m = MAIT[v.id], n = m ? m.niveau : 0;
       return `<div class="skill"><div><b>${esc(v.variable)}</b><span class="mini">${NIVEAUX[n]}${m && n < 4 ? ' · révision ' + dansJours(m.revision) : ''}</span></div><div class="segs">${[1, 2, 3, 4].map((k) => `<span style="background:${n >= k ? COUL_NIV[k] : 'var(--line-strong)'}"></span>`).join('')}</div></div>`; }).join('') : '<p class="mini">Aucune compétence pour l’instant.</p>'}</section>
-    <section><h3>Mes badges</h3><div class="badges">${ME.badges.map((b) => `<div class="badge ${b.got ? 'got' : ''}"><span class="medal" aria-hidden="true">${b.got ? '★' : '☆'}</span><b>${esc(b.nom)}</b><span class="mini">${esc(b.desc)}</span><span class="pill ${b.got ? 'ok' : ''}">${b.got ? 'Obtenu' : esc(b.prog || 'À obtenir')}</span></div>`).join('')}</div></section>`;
+    <p class="mini" style="margin-top:14px">Tes badges sont dans <button class="linkbtn" data-go="moi">ton espace</button> (clique sur ton pseudo, en haut).</p>`;
+  window.scrollTo({ top: 0 });
+}
+
+/* ---------- Mon espace : la semaine, toutes mes notions, mes badges ---------- */
+function vueMoi() {
+  stopJeux();
+  const actifs = ME.semaine.filter(Boolean).length;
+  const notions = DISPO.filter((id) => notionOuverte(id));
+  main().innerHTML = `
+    <div class="head"><div class="eyebrow">Mon espace</div><h1>${esc(ME.eleve.pseudo)}</h1><p>${esc(ME.classe.nom)}</p></div>
+    <section class="card"><h3>Cette semaine</h3>
+      <div class="semaine-moi">${ME.semaine.map((a, i) => `<span class="${a ? 'on' : ''}"><b>${JOURS[i]}</b>${a ? '✓' : ''}</span>`).join('')}</div>
+      <p class="mini" style="margin:10px 0 0">${actifs ? `${pluriel(actifs, 'jour actif')} cette semaine.` : 'Pas encore de jour actif cette semaine.'} ${actifs >= 4 ? 'Badge Régulier obtenu !' : `Encore ${4 - actifs} pour le badge Régulier.`}</p></section>
+    <section><h3 style="margin:22px 0 10px">Mes notions</h3><div class="moi-notions">${notions.map((id) => {
+      const n = CATALOGUE[id], et = etatDe(id), etoiles = et.etapes.reduce((a, e) => a + (e.etoiles || 0), 0), b = bilanNotion(id);
+      return `<button class="card moi-notion" data-notion="${id}"><span class="sym">${n.symbole}</span><span class="mn-t"><b>${esc(n.titreCourt)}</b>
+        <span class="mini">${et.termine ? 'Parcours terminé' : 'En cours'} · <span class="stars">★</span> ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur 9</span>
+        <span class="mini">${b.maitrisees} maîtrisée${b.maitrisees > 1 ? 's' : ''} sur ${b.total} · ${pluriel(b.ancrees, 'ancrée')}${b.aReviser ? ` · <b class="a-reviser">${b.aReviser} à réviser</b>` : ''}</span></span></button>`; }).join('')}</div></section>
+    <section><h3 style="margin:22px 0 10px">Mes badges</h3><div class="badges">${ME.badges.map((b) => `<div class="badge ${b.got ? 'got' : ''}"><span class="medal" aria-hidden="true">${b.got ? '★' : '☆'}</span><b>${esc(b.nom)}</b><span class="mini">${esc(b.desc)}</span><span class="pill ${b.got ? 'ok' : ''}">${b.got ? 'Obtenu' : esc(b.prog || 'À obtenir')}</span></div>`).join('')}</div></section>`;
   window.scrollTo({ top: 0 });
 }
 
