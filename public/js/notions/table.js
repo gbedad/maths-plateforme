@@ -94,12 +94,13 @@ const chrono = () => { const d = Date.now(); return () => (Date.now() - d) / 100
 const sec = (x) => x.toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' s';
 
 /* ---------- Série de calculs à compléter (S'entraîner, Retenir) ---------- */
-function serieCalcul(root, t, faits, { source, titre, ctx, onFin, chronoVisible = true }) {
-  const qs = faits.map((k) => ({ k, sens: Math.random() < 0.5 ? 'kt' : 'tk' }));
+function serieCalcul(root, t0, faits, { source, titre, ctx, onFin, chronoVisible = true, enregistrer }) {
+  // faits : des facteurs k (table t0), ou des objets { t, k } pour mélanger les tables
+  const qs = faits.map((f) => ({ ...(typeof f === 'object' ? f : { t: t0, k: f }), sens: Math.random() < 0.5 ? 'kt' : 'tk' }));
   const res = [];
   let i = 0, top;
   function render() {
-    const q = qs[i];
+    const q = qs[i], t = q.t;
     root.innerHTML = `<div class="ex-top"><div class="steps" aria-hidden="true">${qs.map((_, j) => `<i class="${res[j] ? (res[j].ok ? 'ok' : 'ko') : j === i ? 'cur' : ''}"></i>`).join('')}</div><span class="mini">${esc(titre)}</span></div>
       <div class="qnum">Calcul ${i + 1} sur ${qs.length}</div>
       <form class="calc-form" autocomplete="off"><span class="statement" style="margin:0">${ecrire(q.sens, t, q.k)} =</span><input class="calc-in" inputmode="numeric" aria-label="Résultat" maxlength="4"><button class="btn">Valider</button></form>
@@ -112,8 +113,8 @@ function serieCalcul(root, t, faits, { source, titre, ctx, onFin, chronoVisible 
       const v = nombre(inp.value); if (Number.isNaN(v)) { $('.calc-fb', root).innerHTML = '<p class="err">Écris un nombre.</p>'; return; }
       clearInterval(root._tick);
       const temps = top(), ok = v === t * q.k, calc = ecrire(q.sens, t, q.k);
-      res.push({ k: q.k, ok, temps, v, calc, r: t * q.k });
-      ctx.reponses(source, [{ variante: 'k' + q.k, libelle: `${q.k} × ${t}`, question: `${calc} = ?`, ok1: ok, ok2: null, choix: `${v} (en ${sec(temps)})`, juste: `${calc} = ${t * q.k}`, corrige: `${calc} = ${t * q.k}` }]);
+      res.push({ t: q.t, k: q.k, ok, temps, v, calc, r: t * q.k });
+      (enregistrer || ((it) => ctx.reponses(source, [it])))({ variante: 'k' + q.k, libelle: `${q.k} × ${t}`, question: `${calc} = ?`, ok1: ok, ok2: null, choix: `${v} (en ${sec(temps)})`, juste: `${calc} = ${t * q.k}`, corrige: `${calc} = ${t * q.k}` }, q.t);
       inp.disabled = true; $('.calc-form button', root).disabled = true;
       $('.calc-fb', root).innerHTML = `<div class="feedback"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div><p>${calc} = <b>${t * q.k}</b>${ok ? ` · en ${sec(temps)}` : ''}</p></div><div class="next"><button class="btn" id="calcNext">${i === qs.length - 1 ? 'Terminer' : 'Suivant →'}</button></div>`;
       $('#calcNext', root).focus();
@@ -494,6 +495,25 @@ function entrainerTable(t) {
   };
 }
 function reviserTable(t) { return (root, ids, ctx, onFin) => serieCalcul(root, t, ids.map((id) => +id.slice(1)), { source: 'retenir', titre: 'Révision', ctx, onFin: (res) => onFin(res.map((r) => ({ plein: r.ok, ok1: r.ok, html: `${r.calc} = ${r.v}`, calc: r.calc }))) }); }
+
+/* ---------- Tables mélangées : calculs tirés au hasard dans les tables choisies par l'enseignant ---------- */
+export function serieMelangee(root, tables, nb, { api, toast, onFin }) {
+  const faits = [];
+  while (faits.length < nb) {
+    const f = { t: tables[rnd(0, tables.length - 1)], k: rnd(0, 12) };
+    const p = faits[faits.length - 1];
+    if (!p || p.t !== f.t || p.k !== f.k) faits.push(f);
+  }
+  const enregistrer = (item, t) => api('/api/eleve/reponses', { method: 'POST', body: { notion: `table-${t}`, source: 'entrainer', items: [item] } }).catch(() => toast("Ta réponse n'a pas pu être enregistrée."));
+  serieCalcul(root, tables[0], faits, { source: 'entrainer', titre: 'Tables mélangées', ctx: null, enregistrer, onFin: (res) => {
+    const justes = res.filter((r) => r.ok).length, med = mediane(res.filter((r) => r.ok).map((r) => r.temps));
+    const parTable = tables.map((t) => { const rs = res.filter((r) => r.t === t); return rs.length ? `<span class="pill ${rs.every((r) => r.ok) ? 'ok' : rs.some((r) => r.ok) ? 'mid' : 'ko'}">× ${t} : ${rs.filter((r) => r.ok).length}/${rs.length}</span>` : ''; }).join(' ');
+    root.innerHTML = `<div class="qnum">Série terminée</div><div class="final">${justes} / ${res.length}</div>
+      <p>${justes ? `Calculs justes en ${sec(med)} en moyenne.` : ''} ${justes === res.length ? 'Tout juste !' : 'Regarde les calculs en rouge, puis refais une série.'}</p>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0 12px">${parTable}</div>${recapCalc(res)}`;
+    onFin?.(res);
+  } });
+}
 
 /* ---------- La notion ---------- */
 export function creerTable(t) {

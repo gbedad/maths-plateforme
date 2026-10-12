@@ -284,7 +284,9 @@ async function eleveMoi(env, id) {
   const exercices = ex.results.map((r) => JSON.parse(r.donnees));
   const progression = prog.results.map((p) => ({ ...p, donnees: JSON.parse(p.donnees || '{}') }));
   const maitrise = {};
-  for (const n of reglages.notions) maitrise[n] = calculerMaitrise(rep.results.filter((r) => r.notion === n));
+  // Notions ouvertes + tables de l'entraînement « Tables mélangées » (leurs calculs comptent aussi)
+  const suivies = new Set([...reglages.notions, ...((reglages.melange?.tables || []).map((t) => `table-${t}`))]);
+  for (const n of suivies) maitrise[n] = calculerMaitrise(rep.results.filter((r) => r.notion === n));
   return json({
     eleve: { id: e.id, pseudo: e.pseudo },
     classe: { id: e.classe_id, nom: e.classe, niveau: e.niveau, reglages },
