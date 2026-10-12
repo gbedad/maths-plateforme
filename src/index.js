@@ -66,6 +66,8 @@ async function route(req, env, url) {
     const s = await exigerSession(req, env, 'eleve');
     if (p === '/api/eleve/moi' && m === 'GET') return eleveMoi(env, s.id);
     if (p === '/api/eleve/presence' && m === 'POST') return signalerPresence(req, env, s.id);
+    // Toute action de l'élève (réponse, progression, jeu…) le garde « en ligne », même sans signal de présence
+    if (m === 'POST') await env.DB.prepare("UPDATE eleves SET derniere_activite = datetime('now') WHERE id = ? AND (derniere_activite IS NULL OR derniere_activite < datetime('now', '-20 seconds'))").bind(s.id).run();
     if (p === '/api/eleve/series' && m === 'GET') return eleveSeries(env, s.id, url.searchParams.get('notion'));
     if (p === '/api/eleve/series' && m === 'POST') return enregistrerSerie(req, env, s.id);
     if (p === '/api/eleve/jeux' && m === 'POST') return enregistrerJeu(req, env, s.id);
@@ -150,7 +152,7 @@ async function assurerColonneActivite(env) {
 async function signalerPresence(req, env, id) {
   const b = await body(req);
   await assurerColonneActivite(env);
-  const activite = `${txt(b.notion, 40)}|${txt(b.etape, 30)}`;
+  const activite = `${txt(b.notion, 40)}|${txt(b.etape, 30)}${b.cache ? '|cache' : ''}`;
   await env.DB.prepare("UPDATE eleves SET derniere_activite = datetime('now'), activite = ? WHERE id = ?").bind(activite, id).run();
   return json({ ok: true });
 }
