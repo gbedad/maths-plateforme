@@ -88,7 +88,7 @@ function renderEntete() {
   $('.brand .logo').textContent = N.symbole.length > 2 ? 'ℕ' : N.symbole;
   const actifs = ME.semaine.filter(Boolean).length;
   $('#who').innerHTML = `<span class="week" aria-label="${actifs} jour${actifs > 1 ? 's' : ''} actif${actifs > 1 ? 's' : ''} cette semaine">${ME.semaine.map((a, i) => `<span class="${a ? 'on' : ''}">${JOURS[i]}</span>`).join('')}</span>
-    <button class="linkbtn" data-go="maitrise">Ma maîtrise</button><span><b>${esc(ME.eleve.pseudo)}</b> · ${esc(ME.classe.nom)}</span><button class="linkbtn" id="logout">Se déconnecter</button>`;
+    <span><b>${esc(ME.eleve.pseudo)}</b> · ${esc(ME.classe.nom)}</span><button class="linkbtn" id="logout">Se déconnecter</button>`;
 }
 function renderCarte() {
   $('#carte').innerHTML = DISPO.map((id) => {
@@ -103,6 +103,23 @@ function renderObjectif() {
     <div class="bar" style="margin:8px 0 6px"><i style="width:${pc}%"></i></div><span class="mini">${o.atteint} sur ${o.cible}</span>`;
 }
 
+/* ---------- Onglets de la notion : Parcours | Ma maîtrise ---------- */
+const onglets = (actif) => `<div class="onglets" role="tablist" aria-label="${esc(N.titreCourt)}">${[['parcours', 'Parcours'], ['maitrise', 'Ma maîtrise']].map(([id, nom]) =>
+  `<button role="tab" class="onglet ${id === actif ? 'on' : ''}" aria-selected="${id === actif}" ${id === actif ? 'tabindex="-1"' : `data-go="${id}"`}>${nom}</button>`).join('')}</div>`;
+
+// Aperçu de la maîtrise sous le parcours : une pastille par compétence, colorée selon son niveau
+function apercuMaitrise() {
+  const vs = variantes(); if (!vs.length) return '';
+  const nb = (k) => vs.filter((v) => (MAIT[v.id]?.niveau || 0) >= k).length;
+  return `<button class="apercu-maitrise card" data-go="maitrise" aria-label="Voir ma maîtrise en détail">
+    <span class="am-l1"><b>Ma maîtrise</b><span class="mini">${nb(3)} maîtrisée${nb(3) > 1 ? 's' : ''} sur ${vs.length} · ${nb(4)} ancrée${nb(4) > 1 ? 's' : ''}</span><span class="am-go">Voir le détail →</span></span>
+    <span class="pastilles">${vs.map((v) => { const n = MAIT[v.id]?.niveau || 0;
+      return `<span class="pastille" style="--c:${n ? COUL_NIV[n] : 'var(--line-strong)'};${n >= 3 ? 'color:#fff' : ''}" title="${esc(v.variable)} : ${NIVEAUX[n]}">${esc(courte(v.variable))}</span>`; }).join('')}</span>
+    <span class="am-leg">${[1, 2, 3, 4].map((k) => `<span><i style="background:${COUL_NIV[k]}"></i>${NIVEAUX[k]}</span>`).join('')}</span></button>`;
+}
+// Libellé court d'une compétence pour la pastille (« 7 × 8 » → « 7 ») ; sinon pastille sans texte (le libellé est dans l'info-bulle)
+const courte = (lib) => { const m = String(lib).match(/^(\d+) × \d+$/); return m ? m[1] : ''; };
+
 /* ---------- Vue parcours ---------- */
 function vueParcours() {
   stopJeux();
@@ -110,9 +127,10 @@ function vueParcours() {
   main().innerHTML = `
     <div class="head"><div class="eyebrow">${esc(N.niveau)} · ${esc(N.sousTheme)}</div>
       <h1>${N.titre} <span class="m">${N.symbole.replace('×10ⁿ', 'a × 10ⁿ')}</span></h1>
+      ${onglets('parcours')}
       <p>Sept étapes, chacune ouvre la suivante. Les quatre premières se font librement, sans note ni étoile. À partir de S'entraîner, chaque étape rapporte jusqu'à trois étoiles.</p></div>
     ${cur ? `<div class="next-banner"><div><b>Prochaine étape : ${cur.nom}</b><span class="mini">${esc(cur.desc)}</span></div><button class="btn" data-go="${cur.id}">Continuer →</button></div>`
-      : `<div class="next-banner"><div><b>Parcours terminé</b><span class="mini">Tu peux refaire chaque étape quand tu veux, et réviser dans Retenir.</span></div><button class="btn ghost" data-go="maitrise">Voir ma maîtrise</button></div>`}
+      : `<div class="next-banner"><div><b>Parcours terminé</b><span class="mini">Tu peux refaire chaque étape quand tu veux, et réviser dans Retenir.</span></div></div>`}
     <ol class="parcours">${et.etapes.filter((e) => e.visible).map((e, i) => {
       const st = e.fait ? 'fait' : e.courant ? 'cours' : e.ouvert ? 'ouvert' : 'verrou';
       const lab = { fait: 'Terminé', cours: 'À faire maintenant', ouvert: 'Ouvert', verrou: 'Verrouillé' }[st];
@@ -120,7 +138,8 @@ function vueParcours() {
         <button class="etape-card" data-go="${e.id}" ${e.ouvert ? '' : 'disabled'}>
           <span class="etape-l1"><b>${e.nom}</b>${e.etoiles !== false && ETAPES.find((x) => x.id === e.id).etoiles ? etoilesHTML(e.etoiles) : ''}</span>
           <span class="mini">${esc(e.desc)}</span><span class="pill">${lab}</span></button></li>`;
-    }).join('')}</ol>`;
+    }).join('')}</ol>
+    ${apercuMaitrise()}`;
   window.scrollTo({ top: 0 });
 }
 
@@ -525,7 +544,9 @@ function vueMaitrise() {
   stopJeux();
   const vs = variantes();
   main().innerHTML = `
-    <div class="etape-head"><button class="linkbtn" data-go="parcours">← Parcours</button><div class="eyebrow">${N.titreCourt}</div><h1>Ma maîtrise</h1>
+    <div class="head"><div class="eyebrow">${esc(N.niveau)} · ${esc(N.sousTheme)}</div>
+      <h1>${N.titre} <span class="m">${N.symbole.replace('×10ⁿ', 'a × 10ⁿ')}</span></h1>
+      ${onglets('maitrise')}
       <p class="mini">Pas de note : chaque type de question est une compétence qui monte de niveau quand tu réponds juste et que tu sais dire pourquoi.</p></div>
     <div class="niveaux">${[1, 2, 3, 4].map((n) => `<div class="card"><b><span class="dotn" style="background:${COUL_NIV[n]}"></span>${NIVEAUX[n]}</b><span class="mini">${REGLE_NIV[n]}</span></div>`).join('')}</div>
     <section class="card"><h3>Mes compétences</h3>${vs.length ? vs.map((v) => { const m = MAIT[v.id], n = m ? m.niveau : 0;
