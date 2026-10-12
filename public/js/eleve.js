@@ -54,12 +54,13 @@ function presence(etape, notion) {
   ACT = a; envoyerPresence();
 }
 function envoyerPresence() {
-  if (!ACT || document.hidden) return; // onglet caché : l'élève n'est plus compté en ligne au bout de 2 minutes
+  if (!ACT) return;
+  // On envoie aussi quand l'onglet est en arrière-plan : l'enseignant le voit, avec la mention « onglet en arrière-plan »
   const [notion, etape] = ACT.split('|'); ACT_ENVOYE = Date.now();
-  api('/api/eleve/presence', { method: 'POST', body: { notion, etape } }).catch(() => {});
+  api('/api/eleve/presence', { method: 'POST', body: { notion, etape, cache: document.hidden } }).catch(() => {});
 }
-setInterval(envoyerPresence, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) envoyerPresence(); });
+setInterval(envoyerPresence, 45000);
+document.addEventListener('visibilitychange', envoyerPresence);
 
 /* ---------- État ---------- */
 let VUE_MELANGE = false; // l'élève est sur « Tables mélangées »

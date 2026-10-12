@@ -56,7 +56,8 @@ function quand(s) {
   return `<span class="mini">${min < 60 ? `il y a ${Math.max(1, min)} min` : min < 24 * 60 ? `il y a ${Math.round(min / 60)} h` : dateFr(s)}</span>`;
 }
 function activiteTxt(a) {
-  const [n, e] = String(a || '').split('|');
+  const [n, e, cache] = String(a || '').split('|');
+  if (cache) return `${activiteTxt(`${n}|${e}`)} · onglet en arrière-plan`;
   if (n === 'moi') return 'Mon espace';
   if (n === 'melange') return 'Tables mélangées';
   const et = { parcours: 'Parcours', maitrise: 'Ma maîtrise' }[e] || ETAPES.find((x) => x.id === e)?.nom || '';
