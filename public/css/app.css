@@ -500,3 +500,18 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .why-verdict{margin-top:10px;padding:10px 14px;border-radius:8px;font-weight:700;border-left:4px solid}
 .why-verdict.ok{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
 .why-verdict.ko{border-color:var(--ko);background:var(--ko-soft);color:var(--ko)}
+
+/* Onglets de la notion : Parcours | Ma maîtrise */
+.onglets{display:flex;gap:4px;margin:14px 0 12px;border-bottom:1.5px solid var(--border)}
+.onglet{padding:9px 16px;border:0;background:transparent;color:var(--ink-soft);font-weight:700;font-size:.98rem;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-1.5px;border-radius:8px 8px 0 0}
+.onglet:hover:not(.on){color:var(--ink);background:var(--accent-soft)}
+.onglet.on{color:var(--accent);border-bottom-color:var(--accent);cursor:default}
+/* Aperçu de la maîtrise sous le parcours */
+.apercu-maitrise{display:grid;gap:12px;width:100%;margin-top:18px;text-align:left;cursor:pointer;color:inherit;font:inherit}
+.apercu-maitrise:hover{border-color:var(--accent)}
+.am-l1{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline}
+.am-go{margin-left:auto;color:var(--accent);font-weight:700;font-size:.9rem}
+.pastilles{display:flex;flex-wrap:wrap;gap:6px}
+.pastille{min-width:30px;height:30px;padding:0 6px;border-radius:8px;background:var(--c);display:grid;place-items:center;font-family:var(--f-math);font-weight:700;font-size:.9rem;color:var(--ink)}
+.am-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.8rem;color:var(--ink-soft)}
+.am-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
