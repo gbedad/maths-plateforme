@@ -46,6 +46,21 @@ document.addEventListener('click', async (e) => {
   if (nt && !nt.disabled) choisirNotion(nt.dataset.notion);
 });
 
+/* ---------- Présence : l'enseignant voit qui est en ligne et sur quelle étape ---------- */
+let ACT = null, ACT_ENVOYE = 0;
+function presence(etape, notion) {
+  const a = `${notion || N?.id || ''}|${etape}`;
+  if (a === ACT && Date.now() - ACT_ENVOYE < 55000) return;
+  ACT = a; envoyerPresence();
+}
+function envoyerPresence() {
+  if (!ACT || document.hidden) return; // onglet caché : l'élève n'est plus compté en ligne au bout de 2 minutes
+  const [notion, etape] = ACT.split('|'); ACT_ENVOYE = Date.now();
+  api('/api/eleve/presence', { method: 'POST', body: { notion, etape } }).catch(() => {});
+}
+setInterval(envoyerPresence, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) envoyerPresence(); });
+
 /* ---------- État ---------- */
 let VUE_MELANGE = false; // l'élève est sur « Tables mélangées »
 const progDe = (id) => Object.fromEntries(ME.progression.filter((p) => p.notion === id).map((p) => [p.etape, p]));
@@ -154,6 +169,7 @@ function bilanFin() {
 
 /* ---------- Vue parcours ---------- */
 function vueParcours() {
+  presence('parcours');
   stopJeux();
   const et = etat(), cur = et.etapes.find((e) => e.courant);
   main().innerHTML = `
@@ -179,6 +195,7 @@ function vueParcours() {
 function ouvrirEtape(id) {
   const e = etat().etapes.find((x) => x.id === id);
   if (!e || !e.ouvert) { toast('Cette étape n’est pas encore ouverte.'); return; }
+  presence(id);
   stopJeux();
   const idx = etat().etapes.filter((x) => x.visible).findIndex((x) => x.id === id) + 1;
   const regles = (N.reglesEtoiles || {})[id] || REGLES_ETOILES[id];
@@ -577,6 +594,7 @@ async function plusloin(root) {
 
 /* ---------- Ma maîtrise ---------- */
 function vueMaitrise() {
+  presence('maitrise');
   stopJeux();
   const vs = variantes();
   main().innerHTML = `
@@ -593,6 +611,7 @@ function vueMaitrise() {
 
 /* ---------- Mon espace : la semaine, toutes mes notions, mes badges ---------- */
 function vueMoi() {
+  presence('moi', 'moi');
   stopJeux();
   const actifs = ME.semaine.filter(Boolean).length;
   const notions = DISPO.filter((id) => notionOuverte(id));
@@ -613,7 +632,7 @@ function vueMoi() {
 /* ---------- Tables mélangées (réglées par l'enseignant) ---------- */
 function vueMelange() {
   const m = melange(); if (!m) return vueParcours();
-  stopJeux(); VUE_MELANGE = true; renderCarte();
+  stopJeux(); VUE_MELANGE = true; renderCarte(); presence('melange', 'melange');
   main().innerHTML = `
     <div class="head"><div class="eyebrow">Entraînement</div><h1>Tables mélangées <span class="m">×?</span></h1>
       <p>${m.nb} calculs tirés au hasard dans ${listeTables(m.tables)}. Réponds juste, puis de plus en plus vite. Chaque calcul compte pour la maîtrise de sa table.</p></div>
