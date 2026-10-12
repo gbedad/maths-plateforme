@@ -20,13 +20,18 @@ export function strategies(t, k, sens, modele = false) {
   if (k === 2) return [V(`${t} + ${t} = ${r} : c’est le double.`, 'double'), V(`${autre} = ${r}.`, 'commute'), F(t % 2 === 0 ? `${t} et 2 sont pairs.` : 'Le résultat se termine par 2.', 'Ça ne permet pas de trouver le résultat.')];
   if (k === 5) return [F('Le résultat doit finir par 0 ou 5.', 'C’est vrai pour la table de 5, mais ça ne donne pas le résultat.'), V(`${t * 10} ÷ 2 = ${r} : c’est la moitié de ${ecr(10, t)}.`, 'moitie10'), V(`${autre} = ${r}.`, 'commute')];
   if (k === 10) return [V('Multiplier un nombre par 10 revient à écrire un 0 à sa droite.', 'dix'), coeur, F(`Il faut ajouter 10 à ${t}.`, `Non : ${t} + 10 = ${t + 10}, alors que ${ecr(10, t)} = ${r}.`)];
-  if (k === 11) return [V(`${t * 10} + ${t} = ${r} : 10 fois ${t}, plus encore ${t}.`, 'dixplus'), V(`${autre} = ${r}.`, 'commute'), coeur];
-  if (k === 12) return [V(`${t * 11} + ${t} = ${r} : j’ajoute ${t} au résultat précédent.`, 'ajout'), V(`${t * 10} + ${t * 2} = ${r} : 10 fois ${t} plus 2 fois ${t}.`, 'dixplus'), V(`J’ai obtenu ${r} en posant la multiplication ou en la calculant en ligne.`, 'pose')];
+  if (k === 11) return [V(`${t * 10} + ${t} = ${r} : 10 fois ${t}, plus encore ${t}.`, 'dixplus'), V(`${autre} = ${r}.`, 'commute'), coeur,
+    F(`${t * 10} + 11 = ${r}.`, `Non : ${t * 10} + 11 = ${t * 10 + 11}. On part de ${t * 10} et on ajoute ${t} : ${t * 10} + ${t} = ${r}.`)];
+  if (k === 12) { const p = t * 10 + 12 === r ? 2 : 12; return [V(`${t * 11} + ${t} = ${r} : j’ajoute ${t} au résultat précédent.`, 'ajout'), V(`${t * 10} + ${t * 2} = ${r} : 10 fois ${t} plus 2 fois ${t}.`, 'dixplus'), V(`J’ai obtenu ${r} en posant la multiplication ou en la calculant en ligne.`, 'pose'),
+    F(`${t * 10} + ${p} = ${r}.`, `Non : ${t * 10} + ${p} = ${t * 10 + p}. On découpe 12 en 10 + 2 : ${t * 10} + ${t * 2} = ${r}.`)]; }
   const opts = [V(`${t * (k - 1)} + ${t} = ${r} : j’ajoute ${t} au résultat précédent.`, 'ajout')];
   if (k % 2 === 0 && k >= 4) opts.push(V(`2 × ${t * k / 2} = ${r} : c’est le double de ${ecr(k / 2, t)}.`, 'double'));
   else opts.push(k === t ? coeur : V(`${autre} = ${r}.`, 'commute'));
   opts.push(V(`${t * (k + 1)} − ${t} = ${r} : j’enlève ${t} au résultat suivant.`, 'retrait'));
   if (k === 3) opts.push(F(`${t * 2} × 3 = ${r}.`, `Non : ${t * 2} × 3 = ${t * 6}. Il fallait ${t * 2} + ${t} = ${r}.`));
+  // Erreur fréquente : ajouter le facteur au lieu de la table (ou additionner au lieu de multiplier)
+  else if (k === t) opts.push(F(`${t} + ${t} = ${r}.`, `Non : ${t} + ${t} = ${2 * t}, c’est ${ecr(2, t)}. Pour ${r}, il faut prendre ${t} fois ${t}.`));
+  else opts.push(F(`${t * (k - 1)} + ${k} = ${r}.`, `Non : ${t * (k - 1)} + ${k} = ${t * (k - 1) + k}. Dans la table de ${t}, on ajoute ${t}, pas ${k} : ${t * (k - 1)} + ${t} = ${r}.`));
   return opts;
 }
 const PHRASES_STRAT = {
@@ -49,11 +54,38 @@ function commentaire(cat, t, k, sens) {
     case 'double': return `${c}, c'est ${e(k / 2)} pris deux fois : 2 × ${t * k / 2} = ${r}.${t === 8 ? ' Pour la table de 8 : double, double, double.' : t === 4 ? ' Pour la table de 4 : le double du double.' : ''}`;
     case 'moitie10': return `× 5, c'est la moitié de × 10 : ${t * 10} ÷ 2 = ${r}. Ça marche pour tous les nombres.`;
     case 'dixplus': return k === 11 ? `× 11, c'est × 10 et encore une fois : ${t * 10} + ${t} = ${r}.` : `Découper ${k} en 10 + ${k - 10} : ${t * 10} + ${t * (k - 10)} = ${r}. Ça marche pour tous les grands nombres.`;
-    case 'coeur': return `C'est le but ! Si un jour tu hésites, tu peux vérifier : ${k === 10 ? `${t} suivi d'un 0` : k < 12 ? `${t * (k + 1)} − ${t} = ${r}` : `${t * (k - 1)} + ${t} = ${r}`}.`;
+    case 'coeur': return k === 10 ? "C'est le but ! Et si un jour tu hésites, il y a une règle très simple pour × 10." : `C'est le but ! Si un jour tu hésites, tu peux vérifier : ${k < 12 ? `${t * (k + 1)} − ${t} = ${r}` : `${t * (k - 1)} + ${t} = ${r}`}.`;
     case 'pose': return `Ça marche toujours, mais c'est long. Plus rapide : ${t * (k - 1)} + ${t} = ${r}.`;
     default: return '';
   }
 }
+
+/* ---------- Retour après l'explication (séquence 1) ----------
+   Fonction pure (testable) : titre, pourquoi ça marche, une autre façon qui n'est ni la méthode choisie
+   ni une méthode déjà citée dans le commentaire, et de temps en temps la méthode préférée. */
+const normTxt = (s) => String(s || '').toLowerCase().replace(/[’']/g, "'").replace(/[x×]/g, '×').replace(/-/g, '−').replace(/[^\p{L}\p{N}+−×÷=]/gu, '');
+const equations = (s) => (String(s || '').replace(/[x×]/g, '×').replace(/-/g, '−').match(/\d+\s*[+−×÷]\s*\d+\s*=\s*\d+/g) || []).map(normTxt);
+const dejaDit = (opt, ...textes) => {
+  const nt = normTxt(opt.texte), eq = equations(opt.texte);
+  return textes.some((tx) => { const n = normTxt(tx), e = equations(tx); return (nt && n.includes(nt)) || eq.some((x) => e.includes(x)); });
+};
+export function retourExplication({ opts, pick, ok, t, k, sens, strats = [], alea = Math.random }) {
+  const o = opts[pick];
+  const candidats = (pourquoi) => opts.filter((x, j) => x.ok && j !== pick && !['coeur', 'pose'].includes(x.cat)
+    && !(o.ok && x.cat && x.cat !== 'autre' && x.cat === o.cat) && !dejaDit(x, o.texte, pourquoi));
+  if (o.ok) {
+    const pourquoi = o.expl || commentaire(o.cat, t, k, sens);
+    const liste = o.expl ? [] : candidats(pourquoi); // le commentaire de l'enseignant propose déjà une autre méthode
+    const autre = liste.length ? { label: 'Autre façon', texte: liste[Math.floor(alea() * liste.length)].texte } : null;
+    const fois = strats.filter((c) => c === o.cat).length;
+    const pref = fois >= 3 && fois % 3 === 0 && PHRASES_STRAT[o.cat] && !['zero', 'un', 'dix'].includes(o.cat) ? `C'est la ${fois}e fois que tu choisis cette méthode : c'est ta méthode préférée pour l'instant.` : '';
+    return { ok: true, titre: ok ? '✓ Bonne explication.' : '✓ Ta méthode est la bonne, mais le calcul a glissé : refais-le avec elle.', pourquoi, autre, pref };
+  }
+  const liste = candidats(o.expl);
+  const bonne = liste.length ? liste[Math.floor(alea() * liste.length)] : (dejaDit(opts.find((x) => x.ok) || { texte: '' }, o.expl) ? null : opts.find((x) => x.ok));
+  return { ok: false, titre: `✗ ${o.expl}`, pourquoi: '', autre: bonne ? { label: 'Une bonne façon', texte: bonne.texte } : null, pref: '' };
+}
+export { commentaire, remplirRep };
 
 /* ---------- Petits composants ---------- */
 const ecrire = (sens, t, k) => (sens === 'tk' ? `${t} × ${k}` : `${k} × ${t}`);
@@ -191,19 +223,8 @@ function explorerTable(t) {
             });
             if (o.ok) strats.push(o.cat);
             ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: o.ok, choix: o.texte, juste: o.ok ? o.texte : (opts.find((x) => x.ok) || {}).texte, corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
-            // Commentaire : pourquoi ça marche, une autre façon, et de temps en temps un mot sur la méthode préférée
-            const autres = opts.filter((x, j) => x.ok && j !== pick && !['coeur', 'pose'].includes(x.cat));
-            const autreFacon = autres.length ? autres[rnd(0, autres.length - 1)] : null;
-            let corps;
-            if (o.ok) {
-              const pourquoi = o.expl || commentaire(o.cat, t, k, sens);
-              const fois = strats.filter((c) => c === o.cat).length;
-              const pref = fois >= 3 && fois % 3 === 0 && PHRASES_STRAT[o.cat] && !['zero', 'un', 'dix'].includes(o.cat) ? `C'est la ${fois}e fois que tu choisis cette méthode : c'est ta méthode préférée pour l'instant.` : '';
-              corps = `<b>${ok ? '✓ Bonne explication.' : '✓ Ta méthode est la bonne, mais le calcul a glissé : refais-le avec elle.'}</b>${pourquoi ? `<p>${esc(pourquoi)}</p>` : ''}${autreFacon && !o.expl ? `<p class="autre-facon"><span>Autre façon</span> ${esc(autreFacon.texte)}</p>` : ''}${pref ? `<p class="pref">${esc(pref)}</p>` : ''}`;
-            } else {
-              const bonne = autreFacon || opts.find((x) => x.ok);
-              corps = `<b>✗ ${esc(o.expl)}</b>${bonne ? `<p class="autre-facon"><span>Une bonne façon</span> ${esc(bonne.texte)}</p>` : ''}`;
-            }
+            const R = retourExplication({ opts, pick, ok, t, k, sens, strats });
+            const corps = `<b>${esc(R.titre)}</b>${R.pourquoi ? `<p>${esc(R.pourquoi)}</p>` : ''}${R.autre ? `<p class="autre-facon"><span>${esc(R.autre.label)}</span> ${esc(R.autre.texte)}</p>` : ''}${R.pref ? `<p class="pref">${esc(R.pref)}</p>` : ''}`;
             $('#s1why').innerHTML = `<div class="why-verdict ${o.ok ? 'ok' : 'ko'}">${corps}</div><div class="next"><button class="btn" id="s1next">${n === ORDRE.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
             $('#s1next').focus();
             $('#s1next').onclick = async () => { if (n < ORDRE.length - 1) { n++; question(); } else { const freq = {}; strats.forEach((c) => (freq[c] = (freq[c] || 0) + 1)); await sauver({ phase: Math.max(d.phase || 1, 2), strategies: freq }); continuer(); } };
