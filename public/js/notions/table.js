@@ -35,6 +35,26 @@ const PHRASES_STRAT = {
   pose: () => 'je pose la multiplication', zero: () => 'je sais que × 0 donne 0', un: () => 'je sais que × 1 ne change rien', dix: () => 'j’écris un 0 à droite pour × 10',
 };
 
+/* ---------- Commentaire après une bonne explication (séquence 1) ----------
+   Pourquoi la méthode marche, avec les nombres de la question. */
+function commentaire(cat, t, k, sens) {
+  const r = t * k, c = ecrire(sens, t, k), autre = ecrire(sens === 'tk' ? 'kt' : 'tk', t, k), e = (n) => ecrire(sens, t, n);
+  switch (cat) {
+    case 'zero': return `Multiplier par 0, c'est prendre ${t} zéro fois : il ne reste rien. ${c} = 0, et c'est vrai pour tous les nombres.`;
+    case 'un': return `Prendre ${t} une seule fois, c'est ${t}. Multiplier par 1 ne change jamais un nombre.`;
+    case 'dix': return `Avec × 10, chaque unité devient une dizaine : le ${t} glisse d'un rang et on écrit un 0 à droite. ${t} devient ${t * 10}.`;
+    case 'ajout': return `Chaque ligne de la table, c'est la précédente + ${t} : ${e(k - 1)} = ${t * (k - 1)}, plus ${t}, donne ${r}. ${["Pratique quand tu connais le résultat d'avant.", `On avance de ${t} en ${t}, comme sur une frise.`, "C'est comme ça que la table se construit, ligne après ligne."][k % 3]}`;
+    case 'retrait': return `Tu pars du résultat suivant et tu recules de ${t} : ${e(k + 1)} = ${t * (k + 1)}, moins ${t}, donne ${r}.${[5, 10].includes(k + 1) ? ` Bien vu : ${e(k + 1)} est facile à trouver.` : ''}`;
+    case 'commute': return `${c} et ${autre}, ce sont les mêmes points, rangés en ${k} rangées de ${t} ou en ${t} rangées de ${k}. ${k >= 2 && k <= 9 ? `Ce que tu sais de la table de ${k} te sert déjà.` : "L'ordre de la multiplication ne change pas le résultat."}`;
+    case 'double': return `${c}, c'est ${e(k / 2)} pris deux fois : 2 × ${t * k / 2} = ${r}.${t === 8 ? ' Pour la table de 8 : double, double, double.' : t === 4 ? ' Pour la table de 4 : le double du double.' : ''}`;
+    case 'moitie10': return `× 5, c'est la moitié de × 10 : ${t * 10} ÷ 2 = ${r}. Ça marche pour tous les nombres.`;
+    case 'dixplus': return k === 11 ? `× 11, c'est × 10 et encore une fois : ${t * 10} + ${t} = ${r}.` : `Découper ${k} en 10 + ${k - 10} : ${t * 10} + ${t * (k - 10)} = ${r}. Ça marche pour tous les grands nombres.`;
+    case 'coeur': return `C'est le but ! Si un jour tu hésites, tu peux vérifier : ${k === 10 ? `${t} suivi d'un 0` : k < 12 ? `${t * (k + 1)} − ${t} = ${r}` : `${t * (k - 1)} + ${t} = ${r}`}.`;
+    case 'pose': return `Ça marche toujours, mais c'est long. Plus rapide : ${t * (k - 1)} + ${t} = ${r}.`;
+    default: return '';
+  }
+}
+
 /* ---------- Petits composants ---------- */
 const ecrire = (sens, t, k) => (sens === 'tk' ? `${t} × ${k}` : `${k} × ${t}`);
 // Repères des textes venant de l'Excel : {calc} le calcul, {autre} le calcul retourné, {×N} t × N écrit dans le sens de l'élève, {t} {k} {r}
@@ -170,7 +190,20 @@ function explorerTable(t) {
             });
             if (o.ok) strats.push(o.cat);
             ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: o.ok, choix: o.texte, juste: o.ok ? o.texte : (opts.find((x) => x.ok) || {}).texte, corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
-            $('#s1why').innerHTML = `<div class="why-verdict ${o.ok ? 'ok' : 'ko'}">${o.ok ? '✓ C’est une bonne façon de trouver le résultat.' : '✗ ' + esc(o.expl)}</div><div class="next"><button class="btn" id="s1next">${n === ORDRE.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
+            // Commentaire : pourquoi ça marche, une autre façon, et de temps en temps un mot sur la méthode préférée
+            const autres = opts.filter((x, j) => x.ok && j !== pick && !['coeur', 'pose'].includes(x.cat));
+            const autreFacon = autres.length ? autres[rnd(0, autres.length - 1)] : null;
+            let corps;
+            if (o.ok) {
+              const pourquoi = o.expl || commentaire(o.cat, t, k, sens);
+              const fois = strats.filter((c) => c === o.cat).length;
+              const pref = fois >= 3 && fois % 3 === 0 && PHRASES_STRAT[o.cat] && !['zero', 'un', 'dix'].includes(o.cat) ? `C'est la ${fois}e fois que tu choisis cette méthode : c'est ta méthode préférée pour l'instant.` : '';
+              corps = `<b>${ok ? '✓ Bonne explication.' : '✓ Ta méthode est la bonne, mais le calcul a glissé : refais-le avec elle.'}</b>${pourquoi ? `<p>${esc(pourquoi)}</p>` : ''}${autreFacon ? `<p class="autre-facon"><span>Autre façon</span> ${esc(autreFacon.texte)}</p>` : ''}${pref ? `<p class="pref">${esc(pref)}</p>` : ''}`;
+            } else {
+              const bonne = autreFacon || opts.find((x) => x.ok);
+              corps = `<b>✗ ${esc(o.expl)}</b>${bonne ? `<p class="autre-facon"><span>Une bonne façon</span> ${esc(bonne.texte)}</p>` : ''}`;
+            }
+            $('#s1why').innerHTML = `<div class="why-verdict ${o.ok ? 'ok' : 'ko'}">${corps}</div><div class="next"><button class="btn" id="s1next">${n === ORDRE.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
             $('#s1next').focus();
             $('#s1next').onclick = async () => { if (n < ORDRE.length - 1) { n++; question(); } else { const freq = {}; strats.forEach((c) => (freq[c] = (freq[c] || 0) + 1)); await sauver({ phase: Math.max(d.phase || 1, 2), strategies: freq }); continuer(); } };
           };

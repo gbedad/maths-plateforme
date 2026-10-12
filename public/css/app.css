@@ -529,3 +529,8 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .mn-t{display:grid;gap:3px}
 .a-reviser{color:var(--warn)}
 .next-banner.fin b{display:block}
+
+/* Commentaire après l'explication (séquence 1 des tables) */
+.why-verdict p{margin:6px 0 0;font-weight:400;color:var(--ink)}
+.why-verdict .autre-facon span{display:inline-block;margin-right:6px;padding:1px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-size:.78rem;font-weight:700;color:var(--ink-soft)}
+.why-verdict .pref{font-style:italic;color:var(--ink-soft)}
