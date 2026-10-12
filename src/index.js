@@ -54,6 +54,7 @@ async function route(req, env, url) {
     if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)\/pin$/)) && m === 'DELETE') return reinitPin(env, +r[1]);
     if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)\/fiche$/)) && m === 'GET') return json(await compilerFiche(env, +r[1], url.searchParams.get('notion')));
     if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)$/)) && m === 'DELETE') return supprimer(env, 'eleves', +r[1]);
+    if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)$/)) && m === 'PATCH') return modifierEleve(req, env, +r[1]);
     if (p === '/api/prof/banque' && m === 'GET') return lireBanque(env);
     if (p === '/api/prof/banque' && m === 'PUT') return ecrireBanque(req, env);
     if (p === '/api/prof/signalements' && m === 'GET') return listerSignalements(env);
@@ -66,6 +67,7 @@ async function route(req, env, url) {
     const s = await exigerSession(req, env, 'eleve');
     if (p === '/api/eleve/moi' && m === 'GET') return eleveMoi(env, s.id);
     if (p === '/api/eleve/presence' && m === 'POST') return signalerPresence(req, env, s.id);
+    if (p === '/api/eleve/nom' && m === 'POST') return enregistrerNom(req, env, s.id);
     // Toute action de l'élève (réponse, progression, jeu…) le garde « en ligne », même sans signal de présence
     if (m === 'POST') await env.DB.prepare("UPDATE eleves SET derniere_activite = datetime('now') WHERE id = ? AND (derniere_activite IS NULL OR derniere_activite < datetime('now', '-20 seconds'))").bind(s.id).run();
     if (p === '/api/eleve/series' && m === 'GET') return eleveSeries(env, s.id, url.searchParams.get('notion'));
@@ -156,11 +158,32 @@ function lireReglages(classe) {
    La page de l'élève donne signe de vie toutes les minutes (notion et étape en cours).
    « En ligne » = signe de vie depuis moins de 2 minutes. La colonne « activite » est créée au besoin. */
 const EN_LIGNE = "datetime('now', '-2 minutes')";
-let colonneActivite = false;
+let colonnesOk = false;
 async function assurerColonneActivite(env) {
-  if (colonneActivite) return;
-  try { await env.DB.prepare('ALTER TABLE eleves ADD COLUMN activite TEXT').run(); } catch { /* elle existe déjà */ }
-  colonneActivite = true;
+  if (colonnesOk) return;
+  for (const c of ['activite', 'nom']) { try { await env.DB.prepare(`ALTER TABLE eleves ADD COLUMN ${c} TEXT`).run(); } catch { /* elle existe déjà */ } }
+  colonnesOk = true;
+}
+// Nom affiché à l'enseignant : « Prénom I. » (prénom + initiale du nom, rien de plus)
+function formerNom(prenom, initiale) {
+  const p = String(prenom || '').trim().replace(/\s+/g, ' ').replace(/[<>]/g, '');
+  const i = String(initiale || '').trim().replace(/[^\p{L}]/gu, '').slice(0, 1).toUpperCase();
+  if (p.length < 2 || p.length > 30) throw new HttpError(400, 'Écris ton prénom (2 à 30 lettres).');
+  if (!i) throw new HttpError(400, "Écris l'initiale de ton nom (une lettre).");
+  const P = p.split(/([ -])/).map((x) => (x.length > 1 ? x[0].toUpperCase() + x.slice(1).toLowerCase() : x)).join('');
+  return `${P} ${i}.`;
+}
+async function enregistrerNom(req, env, id) {
+  const b = await body(req); await assurerColonneActivite(env);
+  const nom = formerNom(b.prenom, b.initiale);
+  await env.DB.prepare('UPDATE eleves SET nom = ? WHERE id = ?').bind(nom, id).run();
+  return json({ ok: true, nom });
+}
+async function modifierEleve(req, env, id) {
+  const b = await body(req); await assurerColonneActivite(env);
+  const nom = formerNom(b.prenom, b.initiale);
+  await env.DB.prepare('UPDATE eleves SET nom = ? WHERE id = ?').bind(nom, id).run();
+  return json({ ok: true, nom });
 }
 async function signalerPresence(req, env, id) {
   const b = await body(req);
@@ -203,11 +226,12 @@ async function creerClasse(req, env) {
 }
 
 async function detailClasse(env, id) {
+  await assurerColonneActivite(env);
   const c = await env.DB.prepare('SELECT * FROM classes WHERE id = ?').bind(id).first();
   if (!c) throw new HttpError(404, 'Classe introuvable.');
   const reglages = lireReglages(c);
   const [el, rep, prog, jx] = await Promise.all([
-    env.DB.prepare('SELECT e.id, e.pseudo, e.created_at, e.derniere_activite, (e.pin_hash IS NOT NULL) AS a_pin FROM eleves e WHERE e.classe_id = ? ORDER BY e.pseudo COLLATE NOCASE').bind(id).all(),
+    env.DB.prepare("SELECT e.id, e.pseudo, e.nom, e.created_at, e.derniere_activite, (e.pin_hash IS NOT NULL) AS a_pin FROM eleves e WHERE e.classe_id = ? ORDER BY (e.nom IS NULL), e.nom COLLATE NOCASE, e.pseudo COLLATE NOCASE").bind(id).all(),
     env.DB.prepare(`SELECT r.eleve_id, r.notion, r.source, r.variante, r.libelle, r.ok1, r.ok2, r.created_at FROM reponses r JOIN eleves e ON e.id = r.eleve_id
       WHERE e.classe_id = ? AND r.source IN ('entrainer','retenir') ORDER BY r.created_at, r.id`).bind(id).all(),
     env.DB.prepare('SELECT p.eleve_id, p.notion, p.etape, p.fait, p.etoiles FROM progression p JOIN eleves e ON e.id = p.eleve_id WHERE e.classe_id = ?').bind(id).all(),
@@ -274,8 +298,9 @@ async function ecrireBanque(req, env) {
 }
 
 async function listerSignalements(env) {
+  await assurerColonneActivite(env);
   const { results } = await env.DB.prepare(`
-    SELECT s.*, e.pseudo, c.nom AS classe FROM signalements s
+    SELECT s.*, e.pseudo, e.nom AS nom_eleve, c.nom AS classe FROM signalements s
     LEFT JOIN eleves e ON e.id = s.eleve_id LEFT JOIN classes c ON c.id = e.classe_id
     ORDER BY s.traite, s.created_at DESC LIMIT 200`).all();
   return json(results);
@@ -298,13 +323,20 @@ async function eleveLogin(req, env, url) {
   await new Promise((r) => setTimeout(r, 200));
   const classe = await env.DB.prepare('SELECT * FROM classes WHERE code = ?').bind(code).first();
   if (!classe) throw new HttpError(404, "Ce code de classe n'existe pas. Vérifie-le avec ton professeur.");
+  await assurerColonneActivite(env);
   let eleve = await env.DB.prepare('SELECT * FROM eleves WHERE classe_id = ? AND pseudo = ? COLLATE NOCASE').bind(classe.id, pseudo).first();
   let nouveau = false;
+  // Nouveau compte : prénom et initiale du nom obligatoires (l'enseignant les voit, pas les autres élèves)
+  let nom = null;
+  if (!eleve) {
+    if (b.prenom === undefined && b.initiale === undefined) return json({ besoinNom: true, erreur: 'Nouveau compte : écris ton prénom et l’initiale de ton nom.' }, 409);
+    nom = formerNom(b.prenom, b.initiale);
+  }
   if (!eleve || !eleve.pin_hash) {
     const sel = aleatoire(16, 'abcdefghijklmnopqrstuvwxyz0123456789');
     const hash = await sha256(sel + pin);
     if (eleve) await env.DB.prepare('UPDATE eleves SET pin_sel = ?, pin_hash = ? WHERE id = ?').bind(sel, hash, eleve.id).run();
-    else eleve = await env.DB.prepare('INSERT INTO eleves (classe_id, pseudo, pin_sel, pin_hash) VALUES (?, ?, ?, ?) RETURNING *').bind(classe.id, pseudo, sel, hash).first();
+    else eleve = await env.DB.prepare('INSERT INTO eleves (classe_id, pseudo, pin_sel, pin_hash, nom) VALUES (?, ?, ?, ?, ?) RETURNING *').bind(classe.id, pseudo, sel, hash, nom).first();
     nouveau = true;
   } else if (!egal(await sha256(eleve.pin_sel + pin), eleve.pin_hash)) {
     throw new HttpError(401, "Ce pseudo existe déjà avec un autre code secret. Si c'est bien toi, demande à ton professeur de réinitialiser ton code.");
@@ -313,7 +345,8 @@ async function eleveLogin(req, env, url) {
 }
 
 async function eleveMoi(env, id) {
-  const e = await env.DB.prepare('SELECT e.id, e.pseudo, c.id AS classe_id, c.nom AS classe, c.niveau, c.reglages FROM eleves e JOIN classes c ON c.id = e.classe_id WHERE e.id = ?').bind(id).first();
+  await assurerColonneActivite(env);
+  const e = await env.DB.prepare('SELECT e.id, e.pseudo, e.nom, c.id AS classe_id, c.nom AS classe, c.niveau, c.reglages FROM eleves e JOIN classes c ON c.id = e.classe_id WHERE e.id = ?').bind(id).first();
   if (!e) throw new HttpError(401, 'Connexion nécessaire.');
   await env.DB.prepare("UPDATE eleves SET derniere_activite = datetime('now') WHERE id = ?").bind(id).run();
   const reglages = lireReglages(e);
@@ -332,7 +365,7 @@ async function eleveMoi(env, id) {
   const suivies = new Set([...reglages.notions, ...((reglages.melange?.tables || []).map((t) => `table-${t}`))]);
   for (const n of suivies) maitrise[n] = calculerMaitrise(rep.results.filter((r) => r.notion === n));
   return json({
-    eleve: { id: e.id, pseudo: e.pseudo },
+    eleve: { id: e.id, pseudo: e.pseudo, nom: e.nom || null },
     classe: { id: e.classe_id, nom: e.classe, niveau: e.niveau, reglages },
     exercices, progression, maitrise,
     config: Object.fromEntries(cfg.results.map((c) => [c.notion, JSON.parse(c.donnees || '{}')])),

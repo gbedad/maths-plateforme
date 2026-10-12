@@ -19,9 +19,27 @@ async function charger() {
   ME = await api('/api/eleve/moi');
   DISPO = ME.classe.reglages.notions.filter((id) => CATALOGUE[id]);
 }
+// Compte créé avant l'ajout du nom : on le demande une fois
+function demanderNom() {
+  return new Promise((resolve) => {
+    const d = document.createElement('div'); d.className = 'modal-fond';
+    d.innerHTML = `<form class="card modal" role="dialog" aria-modal="true" aria-labelledby="nmT"><h2 id="nmT">Une dernière chose</h2>
+      <p class="mini">Pour que ton professeur te reconnaisse, indique ton prénom et l'initiale de ton nom. Les autres élèves ne les verront pas.</p>
+      <div class="row2"><div class="field"><label for="nmP">Prénom</label><input id="nmP" maxlength="30" required placeholder="ex. Léa"></div>
+      <div class="field" style="max-width:120px"><label for="nmI">Initiale du nom</label><input id="nmI" maxlength="1" required placeholder="M" style="text-transform:uppercase;text-align:center"></div></div>
+      <p class="err" id="nmErr" role="alert"></p><button class="btn">Enregistrer</button></form>`;
+    document.body.appendChild(d); $('#nmP').focus();
+    d.querySelector('form').onsubmit = async (e) => {
+      e.preventDefault();
+      try { const r = await api('/api/eleve/nom', { method: 'POST', body: { prenom: $('#nmP').value, initiale: $('#nmI').value } }); ME.eleve.nom = r.nom; d.remove(); resolve(); }
+      catch (err) { $('#nmErr').textContent = err.message; }
+    };
+  });
+}
 async function demarrer() {
   try { await charger(); } catch (e) { if (e.status === 401) return afficherLogin(); $('#loading').textContent = e.message; return; }
   $('#loading').hidden = true; $('#login').hidden = true; $('#app').hidden = false; $('#who').hidden = false;
+  if (!ME.eleve.nom) await demanderNom();
   if (!DISPO.length) { main().innerHTML = '<div class="card empty">Aucune notion n\'est encore ouverte pour ta classe.</div>'; return; }
   const pref = store.get('mpe-notion');
   const ouvertes = DISPO.filter((id) => notionOuverte(id));
@@ -40,11 +58,16 @@ $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault(); $('#lgErr').textContent = '';
   const btn = $('#loginForm button'); btn.disabled = true;
   try {
-    const r = await api('/api/eleve/login', { method: 'POST', body: { code: $('#lgCode').value, pseudo: $('#lgPseudo').value, pin: $('#lgPin').value } });
+    const nouveau = !$('#lgNouveau').hidden;
+    const r = await api('/api/eleve/login', { method: 'POST', body: { code: $('#lgCode').value, pseudo: $('#lgPseudo').value, pin: $('#lgPin').value, ...(nouveau ? { prenom: $('#lgPrenom').value, initiale: $('#lgInit').value } : {}) } });
     garderCodeClasse($('#lgCode').value);
     if (r.nouveau) toast('Bienvenue ! Retiens bien ton pseudo et ton code secret.');
     await demarrer();
-  } catch (err) { $('#lgErr').textContent = err.message; } finally { btn.disabled = false; }
+  } catch (err) {
+    // Pseudo inconnu : c'est un nouveau compte, on demande le prénom et l'initiale du nom
+    if (err.status === 409) { $('#lgNouveau').hidden = false; $('#lgErr').textContent = ''; $('#lgPrenom').focus(); return; }
+    $('#lgErr').textContent = err.message;
+  } finally { btn.disabled = false; }
 });
 document.addEventListener('click', async (e) => {
   if (e.target.id === 'logout') { await api('/api/logout', { method: 'POST', body: { role: 'eleve' } }).catch(() => {}); location.reload(); }
