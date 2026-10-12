@@ -19,7 +19,7 @@
   <form class="card login" id="loginForm">
     <h1>Espace enseignant</h1>
     <p>Entre le mot de passe administrateur défini lors de l'installation.</p>
-    <div class="field"><label for="lgPass">Mot de passe</label><input id="lgPass" type="password" required autocomplete="current-password"></div>
+    <div class="field"><label for="lgPass">Mot de passe</label><div class="pw-wrap"><input id="lgPass" type="password" required autocomplete="current-password"><button type="button" class="pw-eye" aria-label="Afficher le mot de passe" aria-pressed="false" title="Afficher / masquer"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="o" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle class="o" cx="12" cy="12" r="3"/><path class="barre" d="M4 4l16 16"/></svg></button></div></div>
     <p class="err" id="lgErr" role="alert"></p>
     <button class="btn" type="submit">Se connecter</button>
   </form>

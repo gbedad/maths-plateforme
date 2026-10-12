@@ -50,3 +50,12 @@ export function htmlToTxt(html) {
     .replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
     .replace(/[  ]/g, ' ').replace(/\s+/g, ' ').trim();
 }
+
+// Champs secrets : le bouton « œil » affiche ou masque le contenu
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('.pw-eye'); if (!b) return;
+  const inp = b.parentElement.querySelector('input'); const voir = inp.type === 'password';
+  inp.type = voir ? 'text' : 'password'; b.setAttribute('aria-pressed', String(voir));
+  b.setAttribute('aria-label', (voir ? 'Masquer' : 'Afficher') + (inp.id === 'lgPass' ? ' le mot de passe' : ' le code'));
+  inp.focus();
+});
