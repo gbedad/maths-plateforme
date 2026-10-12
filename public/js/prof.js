@@ -14,6 +14,11 @@ let CLASSES = [], VUE = 'classes', IMPORT = null;
 const pc = (x) => (x == null ? '—' : Math.round(x * 100) + ' %');
 const pill = (x) => (x == null ? '<span class="pill">—</span>' : `<span class="pill ${x >= 0.85 ? 'ok' : x >= 0.5 ? 'mid' : 'ko'}">${pc(x)}</span>`);
 
+// Session expirée : on réaffiche le formulaire de connexion (la vue demandée est rouverte ensuite)
+function reconnexion() {
+  $('#app').hidden = true; $('#who').hidden = true; $('#login').hidden = false;
+  $('#lgErr').textContent = 'Ta session a expiré : reconnecte-toi.'; $('#lgPass').focus();
+}
 async function demarrer() {
   try { await api('/api/prof/moi'); } catch (e) { $('#loading').hidden = true; if (e.status === 401) { $('#login').hidden = false; $('#lgPass').focus(); } else $('#loading').textContent = e.message; return; }
   $('#loading').hidden = true; $('#login').hidden = true; $('#app').hidden = false; $('#who').hidden = false;
@@ -25,7 +30,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault(); $('#lgErr').textContent = '';
   try { await api('/api/prof/login', { method: 'POST', body: { motDePasse: $('#lgPass').value } }); await demarrer(); } catch (err) { $('#lgErr').textContent = err.message; }
 });
-$('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }).catch(() => {}); location.reload(); });
+$('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST', body: { role: 'prof' } }).catch(() => {}); location.reload(); });
 
 async function chargerClasses() { CLASSES = await api('/api/prof/classes'); renderNav(); }
 function renderNav() {
@@ -106,7 +111,7 @@ const sq = (n) => `<span class="sq" style="background:${COUL_NIV[n]}" title="${N
 
 async function vueClasse(id) {
   $('#main').innerHTML = '<div class="loading">Chargement…</div>';
-  let d, bq; try { [d, bq] = await Promise.all([api('/api/prof/classes/' + id), banque()]); } catch (e) { $('#main').innerHTML = `<div class="card">${esc(e.message)}</div>`; return; }
+  let d, bq; try { [d, bq] = await Promise.all([api('/api/prof/classes/' + id), banque()]); } catch (e) { if (e.status === 401) return reconnexion(); $('#main').innerHTML = `<div class="card">${esc(e.message)}</div>`; return; }
   const c = d.classe, r = c.reglages, o = d.objectif;
   const notions = [...new Set([...r.notions, ...((r.melange?.tables || []).map((t) => `table-${t}`))])].filter((n) => CATALOGUE[n]);
   const vars = (n) => { const v = bq.filter((x) => x.notion === n).flatMap((x) => x.variantes); return v.length ? v : (CATALOGUE[n].competences || []); };

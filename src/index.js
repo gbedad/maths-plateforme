@@ -39,7 +39,7 @@ async function route(req, env, url) {
 
   // Enseignant
   if (p === '/api/prof/login' && m === 'POST') return profLogin(req, env);
-  if (p === '/api/logout' && m === 'POST') return json({ ok: true }, 200, { 'set-cookie': cookie('', 0, url) });
+  if (p === '/api/logout' && m === 'POST') return deconnecter(req, url);
   if (p.startsWith('/api/prof/')) {
     await exigerSession(req, env, 'prof');
     if (p === '/api/prof/moi' && m === 'GET') return json({ role: 'prof' });
@@ -102,19 +102,32 @@ async function verifier(env, jeton) {
   return p.exp > Date.now() ? p : null;
 }
 function egal(a, b) { if (a.length !== b.length) return false; let x = 0; for (let i = 0; i < a.length; i++) x |= a.charCodeAt(i) ^ b.charCodeAt(i); return x === 0; }
-function cookie(valeur, maxAge, url) {
+// Un cookie par rôle (mpe_prof, mpe_eleve) : se connecter comme élève dans le même navigateur
+// ne déconnecte plus l'enseignant, et inversement. L'ancien cookie commun (mpe_session) reste accepté.
+function cookie(valeur, maxAge, url, nom = 'mpe_session') {
   const secure = url.protocol === 'https:' ? '; Secure' : '';
-  return `mpe_session=${valeur}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+  return `${nom}=${valeur}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
 }
+const lireCookie = (req, nom) => ((req.headers.get('cookie') || '').match(new RegExp(`(?:^|;\\s*)${nom}=([^;]+)`)) || [])[1];
 async function exigerSession(req, env, role) {
-  const c = (req.headers.get('cookie') || '').match(/(?:^|;\s*)mpe_session=([^;]+)/);
-  const s = c && (await verifier(env, c[1]));
-  if (!s || s.role !== role) throw new HttpError(401, 'Connexion nécessaire.');
-  return s;
+  for (const nom of [`mpe_${role}`, 'mpe_session']) {
+    const v = lireCookie(req, nom);
+    const s = v && (await verifier(env, v).catch(() => null));
+    if (s && s.role === role) return s;
+  }
+  throw new HttpError(401, 'Connexion nécessaire.');
 }
 async function ouvrirSession(env, url, payload) {
   const jeton = await signer(env, { ...payload, exp: Date.now() + SESSION_JOURS * 864e5 });
-  return cookie(jeton, SESSION_JOURS * 86400, url);
+  return cookie(jeton, SESSION_JOURS * 86400, url, `mpe_${payload.role}`);
+}
+async function deconnecter(req, url) {
+  const b = await req.json().catch(() => ({}));
+  const roles = ['prof', 'eleve'].includes(b.role) ? [b.role] : ['prof', 'eleve'];
+  const h = new Headers({ 'content-type': 'application/json; charset=utf-8' });
+  for (const r of roles) h.append('set-cookie', cookie('', 0, url, `mpe_${r}`));
+  h.append('set-cookie', cookie('', 0, url)); // ancien cookie commun
+  return new Response(JSON.stringify({ ok: true }), { status: 200, headers: h });
 }
 async function sha256(s) { return b64u(await crypto.subtle.digest('SHA-256', enc.encode(s))); }
 const aleatoire = (n, alphabet) => { const a = crypto.getRandomValues(new Uint8Array(n)); return [...a].map((x) => alphabet[x % alphabet.length]).join(''); };

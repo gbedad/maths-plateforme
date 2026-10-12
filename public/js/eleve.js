@@ -38,7 +38,7 @@ $('#loginForm').addEventListener('submit', async (e) => {
   } catch (err) { $('#lgErr').textContent = err.message; } finally { btn.disabled = false; }
 });
 document.addEventListener('click', async (e) => {
-  if (e.target.id === 'logout') { await api('/api/logout', { method: 'POST' }).catch(() => {}); location.reload(); }
+  if (e.target.id === 'logout') { await api('/api/logout', { method: 'POST', body: { role: 'eleve' } }).catch(() => {}); location.reload(); }
   const go = e.target.closest('[data-go]');
   if (go) { e.preventDefault(); const v = go.dataset.go; if (v === 'parcours') vueParcours(); else if (v === 'maitrise') vueMaitrise(); else if (v === 'moi') vueMoi(); else ouvrirEtape(v); }
   if (e.target.closest('[data-melange]')) { vueMelange(); return; }
