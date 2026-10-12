@@ -111,6 +111,8 @@ Importer un fichier remplace les exercices des notions qu'il contient.
 `liste(12; 18; 2,5; -3; 7/2)`, `entier(1; 100)`, `entier(1; 100; pair)`, `entier(1; 100; multiple de 6)`, `entier(1; 100; pas multiple de 6)`, `decimal(0; 10; 2)`, `fraction(1; 40)`, `fraction(1; 40; entière)`.
 Leurs repères (`{m}`, `{q}`, `{bas}`, `{haut}`, `{num}`…) sont listés dans l'onglet « Générateurs » de l'Excel. Les autres notions ne changent pas.
 
+**Questions des tables de multiplication** : la séquence 1 d'Explorer (« 8 × k = ? » puis « Pourquoi ? ») se règle dans une feuille « Tables ». Modèle : `data/table-8-questions.xlsx` (une ligne = un choix de réponse ; repères `{calc}`, `{autre}`, `{×10}` ; mode d'emploi dans le fichier). On peut importer ce fichier seul : la banque n'est pas touchée. Sans import, la plateforme utilise ses questions par défaut.
+
 ## Ajouter une notion
 
 1. Ajoute ses générateurs de nombres dans `public/js/moteur.js`.

@@ -211,7 +211,8 @@ async function lireBanque(env) {
 
 async function ecrireBanque(req, env) {
   const { exercices, config } = await body(req);
-  if (!Array.isArray(exercices) || !exercices.length) throw new HttpError(400, 'Le fichier ne contient aucun exercice.');
+  const aConfig = config && typeof config === 'object' && Object.keys(config).length;
+  if (!Array.isArray(exercices) || (!exercices.length && !aConfig)) throw new HttpError(400, 'Le fichier ne contient aucun exercice.');
   const notions = [...new Set(exercices.map((e) => e.notion))];
   const stmts = notions.map((n) => env.DB.prepare('DELETE FROM exercices WHERE notion = ?').bind(n));
   for (const e of exercices) {
@@ -219,8 +220,10 @@ async function ecrireBanque(req, env) {
     stmts.push(env.DB.prepare('INSERT INTO exercices (notion, numero, donnees) VALUES (?, ?, ?)').bind(e.notion, e.numero, JSON.stringify(e)));
   }
   for (const [notion, c] of Object.entries(config && typeof config === 'object' ? config : {})) {
-    stmts.push(env.DB.prepare("INSERT INTO notions_config (notion, donnees, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(notion) DO UPDATE SET donnees = excluded.donnees, updated_at = excluded.updated_at")
-      .bind(String(notion).slice(0, 40), JSON.stringify(c).slice(0, 4000)));
+    // Réglages fusionnés avec ceux déjà enregistrés (seuil d'Explorer, questions des tables…)
+    if (JSON.stringify(c).length > 60000) throw new HttpError(400, `Réglages trop volumineux pour la notion ${notion}.`);
+    stmts.push(env.DB.prepare("INSERT INTO notions_config (notion, donnees, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(notion) DO UPDATE SET donnees = json_patch(notions_config.donnees, excluded.donnees), updated_at = excluded.updated_at")
+      .bind(String(notion).slice(0, 40), JSON.stringify(c)));
   }
   await env.DB.batch(stmts);
   return json({ ok: true, notions, nb: exercices.length });

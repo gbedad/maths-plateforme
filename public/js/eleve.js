@@ -53,7 +53,7 @@ const etat = () => etatDe(N.id, REVEALED);
 const variantes = () => (EXOS.length ? EXOS.flatMap((x) => x.variantes.map((v) => ({ ...v, exo: x }))) : (N.competences || []));
 // Contexte donné aux notions qui définissent leurs propres étapes (ex. tables de multiplication)
 const ctx = () => ({
-  prog: PROG, maitrise: MAIT, toast, suite, etoiles: etoilesHTML,
+  prog: PROG, maitrise: MAIT, toast, suite, etoiles: etoilesHTML, config: ME.config?.[N.id] || {},
   sauver: (etape, data) => sauverEtape(etape, data),
   recharger: async () => { await recharger(); return MAIT; },
   reponses: (source, items) => api('/api/eleve/reponses', { method: 'POST', body: { notion: N.id, source, items } }).catch(() => toast("Ta réponse n'a pas pu être enregistrée.")),

@@ -8,8 +8,11 @@ const COUL_UNITES = ['#e9e1d6', '#d6efd9', '#f6d6de', '#f8ecc9', '#dcdcf6', '#d6
 
 /* ---------- Stratégies (le « pourquoi » de la séquence 1) ----------
    Plusieurs réponses peuvent être valables : l'élève choisit celle qui explique le mieux comment il a trouvé. */
-export function strategies(t, k, sens) {
-  const r = t * k, ecr = (a, b) => (sens === 'tk' ? `${b} × ${a}` : `${a} × ${b}`), autre = sens === 'tk' ? `${k} × ${t}` : `${t} × ${k}`;
+// modele = true : textes avec repères ({×10}, {autre}) pour le fichier Excel, au lieu des calculs écrits dans le sens de l'élève
+export function strategies(t, k, sens, modele = false) {
+  const r = t * k;
+  const ecr = modele ? (a) => `{×${a}}` : (a, b) => (sens === 'tk' ? `${b} × ${a}` : `${a} × ${b}`);
+  const autre = modele ? '{autre}' : sens === 'tk' ? `${k} × ${t}` : `${t} × ${k}`;
   const V = (texte, cat) => ({ texte, cat, ok: true }), F = (texte, expl) => ({ texte, ok: false, expl });
   const coeur = V('Je connais le résultat par cœur.', 'coeur');
   if (k === 0) return [F('On n’a pas le droit de multiplier un nombre par 0.', 'On peut multiplier par 0 : le résultat vaut 0.'), F(`${t} est plus grand que 0.`, 'C’est vrai, mais ça n’explique pas le résultat.'), V('N’importe quel nombre multiplié par 0 est égal à 0.', 'zero')];
@@ -34,6 +37,23 @@ const PHRASES_STRAT = {
 
 /* ---------- Petits composants ---------- */
 const ecrire = (sens, t, k) => (sens === 'tk' ? `${t} × ${k}` : `${k} × ${t}`);
+// Repères des textes venant de l'Excel : {calc} le calcul, {autre} le calcul retourné, {×N} t × N écrit dans le sens de l'élève, {t} {k} {r}
+const remplirRep = (txt, t, k, sens) => String(txt || '')
+  .replace(/\{calc\}/g, ecrire(sens, t, k)).replace(/\{autre\}/g, ecrire(sens === 'tk' ? 'kt' : 'tk', t, k))
+  .replace(/\{×\s*(\d+)\}/g, (_, n) => ecrire(sens, t, +n)).replace(/\{t\}/g, t).replace(/\{k\}/g, k).replace(/\{r\}/g, t * k);
+// Séquence 1 : questions de l'Excel (feuille « Tables ») si l'enseignant en a importé, sinon le modèle par défaut
+function questionsSeq1(t, config) {
+  const xl = Array.isArray(config?.sequence1) ? config.sequence1.filter((q) => FAITS.includes(q.k) && q.options?.some((o) => o.ok)) : [];
+  const parK = new Map(xl.map((q) => [q.k, q]));
+  const ordre = xl.length ? [...xl].sort((a, b) => a.ordre - b.ordre).map((q) => q.k) : [...ORDRE_EXPLORER];
+  ORDRE_EXPLORER.forEach((k) => { if (!ordre.includes(k)) ordre.push(k); });
+  const options = (k, sens) => {
+    const q = parK.get(k);
+    if (!q) return strategies(t, k, sens);
+    return q.options.map((o) => ({ texte: remplirRep(o.texte, t, k, sens), ok: !!o.ok, cat: o.cat || 'autre', expl: remplirRep(o.expl || (o.ok ? '' : 'Ça ne permet pas de trouver le résultat.'), t, k, sens) }));
+  };
+  return { ordre, options };
+}
 function tableHTML(t, sens, etat = {}, actif = null) {
   return `<div class="tbl-t">${FAITS.map((k) => {
     const e = etat[k] || {};
@@ -106,11 +126,11 @@ function explorerTable(t) {
 
     // Séquence 1 : reconstituer la table dans l'ordre imposé, avec un « pourquoi » à chaque question
     function sequence1() {
-      const sens = d.sens, etat = {}, strats = [];
+      const sens = d.sens, etat = {}, strats = [], S1 = questionsSeq1(t, ctx.config), ORDRE = S1.ordre;
       let n = 0;
       function question() {
-        const k = ORDRE_EXPLORER[n];
-        root.innerHTML = `${intro(`Séquence 1 sur 3 · question ${n + 1} sur ${ORDRE_EXPLORER.length}`, `Reconstitue la table de ${t}. Les questions ne viennent pas dans l'ordre : complète la case en couleur.`)}
+        const k = ORDRE[n];
+        root.innerHTML = `${intro(`Séquence 1 sur 3 · question ${n + 1} sur ${ORDRE.length}`, `Reconstitue la table de ${t}. Les questions ne viennent pas dans l'ordre : complète la case en couleur.`)}
           <div class="seq-grid">${tableHTML(t, sens, etat, k)}<div class="seq-side">
             <form class="calc-form" autocomplete="off"><span class="statement" style="margin:0">${ecrire(sens, t, k)} =</span><input class="calc-in" inputmode="numeric" maxlength="4" aria-label="Résultat"><button class="btn">Valider</button></form>
             <div id="s1fb" role="status"></div></div></div>`;
@@ -121,7 +141,7 @@ function explorerTable(t) {
           const ok = v === t * k; etat[k] = { val: ok ? v : t * k, ok };
           inp.disabled = true; $('.calc-form button', root).disabled = true;
           $('.tbl-t', root).outerHTML = tableHTML(t, sens, etat, k);
-          const opts = shuffle(strategies(t, k, sens));
+          const opts = shuffle(S1.options(k, sens));
           const bilanCalc = ok
             ? `<div class="calc-bilan"><span class="cb good">✓ ${ecrire(sens, t, k)} = ${v}</span></div>`
             : `<div class="calc-bilan"><span class="cb bad">✗ Ta réponse : ${v}</span><span class="cb good-ghost">✓ ${ecrire(sens, t, k)} = ${t * k}</span></div>`;
@@ -150,9 +170,9 @@ function explorerTable(t) {
             });
             if (o.ok) strats.push(o.cat);
             ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: o.ok, choix: o.texte, juste: o.ok ? o.texte : (opts.find((x) => x.ok) || {}).texte, corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
-            $('#s1why').innerHTML = `<div class="why-verdict ${o.ok ? 'ok' : 'ko'}">${o.ok ? '✓ C’est une bonne façon de trouver le résultat.' : '✗ ' + esc(o.expl)}</div><div class="next"><button class="btn" id="s1next">${n === ORDRE_EXPLORER.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
+            $('#s1why').innerHTML = `<div class="why-verdict ${o.ok ? 'ok' : 'ko'}">${o.ok ? '✓ C’est une bonne façon de trouver le résultat.' : '✗ ' + esc(o.expl)}</div><div class="next"><button class="btn" id="s1next">${n === ORDRE.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
             $('#s1next').focus();
-            $('#s1next').onclick = async () => { if (n < ORDRE_EXPLORER.length - 1) { n++; question(); } else { const freq = {}; strats.forEach((c) => (freq[c] = (freq[c] || 0) + 1)); await sauver({ phase: Math.max(d.phase || 1, 2), strategies: freq }); continuer(); } };
+            $('#s1next').onclick = async () => { if (n < ORDRE.length - 1) { n++; question(); } else { const freq = {}; strats.forEach((c) => (freq[c] = (freq[c] || 0) + 1)); await sauver({ phase: Math.max(d.phase || 1, 2), strategies: freq }); continuer(); } };
           };
         };
       }
@@ -232,7 +252,7 @@ function explorerTable(t) {
 
     async function fin() {
       const dejaFini = d.phase === 4;
-      const freq = d.strategies || {}, top = Object.entries(freq).filter(([c]) => !['zero', 'un', 'dix'].includes(c)).sort((a, b) => b[1] - a[1])[0];
+      const freq = d.strategies || {}, top = Object.entries(freq).filter(([c]) => PHRASES_STRAT[c] && !['zero', 'un', 'dix'].includes(c)).sort((a, b) => b[1] - a[1])[0];
       const regle = `Je préfère écrire ${d.sens === 'tk' ? `${t} × ${ex}` : `${ex} × ${t}`}. ${top ? `Pour retrouver un résultat, le plus souvent, ${PHRASES_STRAT[top[0]](t)}.` : ''}`;
       await sauver({ phase: 4, regle }, true);
       termine();
