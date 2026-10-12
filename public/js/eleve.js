@@ -27,12 +27,21 @@ async function demarrer() {
   const ouvertes = DISPO.filter((id) => notionOuverte(id));
   choisirNotion(ouvertes.includes(pref) ? pref : ouvertes[ouvertes.length - 1] || DISPO[0]);
 }
-function afficherLogin() { $('#loading').hidden = true; $('#app').hidden = true; $('#who').hidden = true; $('#login').hidden = false; $('#lgCode').focus(); }
+// Code de la classe gardé sur l'appareil (cookie d'un an, + stockage local en secours) : l'élève n'a plus à le retaper
+const lireCodeClasse = () => (document.cookie.match(/(?:^|;\s*)mpe_classe=([^;]+)/) || [])[1] || store.get('mpe-classe') || '';
+const garderCodeClasse = (c) => { c = String(c || '').trim().toUpperCase(); if (!c) return; document.cookie = `mpe_classe=${encodeURIComponent(c)}; Max-Age=31536000; Path=/; SameSite=Lax`; store.set('mpe-classe', c); };
+function afficherLogin() {
+  $('#loading').hidden = true; $('#app').hidden = true; $('#who').hidden = true; $('#login').hidden = false;
+  const code = decodeURIComponent(lireCodeClasse());
+  if (code && !$('#lgCode').value) $('#lgCode').value = code;
+  (code ? $('#lgPseudo') : $('#lgCode')).focus();
+}
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault(); $('#lgErr').textContent = '';
   const btn = $('#loginForm button'); btn.disabled = true;
   try {
     const r = await api('/api/eleve/login', { method: 'POST', body: { code: $('#lgCode').value, pseudo: $('#lgPseudo').value, pin: $('#lgPin').value } });
+    garderCodeClasse($('#lgCode').value);
     if (r.nouveau) toast('Bienvenue ! Retiens bien ton pseudo et ton code secret.');
     await demarrer();
   } catch (err) { $('#lgErr').textContent = err.message; } finally { btn.disabled = false; }
