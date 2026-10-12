@@ -558,3 +558,14 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .pw-eye svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .pw-eye .barre{display:none}
 .pw-eye[aria-pressed="true"] .barre{display:inline}
+
+/* Nom des élèves */
+.pseudo{color:var(--ink-soft);font-weight:400;font-size:.8rem;margin-left:4px}
+.nom-form{display:flex;gap:6px;align-items:center}
+.nom-form input{padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font:inherit;width:9em}
+.row2{display:flex;gap:10px;flex-wrap:wrap}
+.row2 .field{flex:1 1 140px}
+.nouveau-compte{padding:12px;border-radius:10px;background:var(--accent-soft);margin-bottom:12px}
+.modal-fond{position:fixed;inset:0;background:rgba(10,20,18,.45);display:grid;place-items:center;padding:16px;z-index:50}
+.modal{max-width:440px;width:100%;display:grid;gap:10px}
+.modal h2{margin:0;font-family:var(--f-display)}

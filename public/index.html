@@ -22,6 +22,10 @@
     <p>La première fois, choisis un pseudo (pas ton vrai nom) et un code secret de 4 chiffres. Retiens-les : ils te serviront à chaque connexion.</p>
     <div class="field"><label for="lgCode">Code de la classe</label><input id="lgCode" required maxlength="10" style="text-transform:uppercase;font-family:var(--f-mono);letter-spacing:.1em" placeholder="ex. K7PM3X"><small>Ton professeur te le donne.</small></div>
     <div class="field"><label for="lgPseudo">Pseudo</label><input id="lgPseudo" required maxlength="24" placeholder="ex. renard-bleu"></div>
+    <div class="nouveau-compte" id="lgNouveau" hidden>
+      <p class="mini" style="margin:0 0 8px"><b>Nouveau compte.</b> Pour que ton professeur te reconnaisse, indique ton prénom et l'initiale de ton nom. Les autres élèves ne les verront pas.</p>
+      <div class="row2"><div class="field"><label for="lgPrenom">Prénom</label><input id="lgPrenom" maxlength="30" autocomplete="given-name" placeholder="ex. Léa"></div>
+      <div class="field" style="max-width:120px"><label for="lgInit">Initiale du nom</label><input id="lgInit" maxlength="1" autocomplete="off" placeholder="M" style="text-transform:uppercase;text-align:center"></div></div></div>
     <div class="field"><label for="lgPin">Code secret (4 chiffres)</label><div class="pw-wrap"><input id="lgPin" class="pin" type="password" required inputmode="numeric" pattern="\d{4}" maxlength="4" placeholder="••••" autocomplete="off"><button type="button" class="pw-eye" aria-label="Afficher le code" aria-pressed="false" title="Afficher / masquer"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="o" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle class="o" cx="12" cy="12" r="3"/><path class="barre" d="M4 4l16 16"/></svg></button></div></div>
     <p class="err" id="lgErr" role="alert"></p>
     <button class="btn" type="submit">Entrer</button>

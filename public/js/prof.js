@@ -52,6 +52,10 @@ function aller(vue) {
 // Confirmation en deux clics (les boîtes de dialogue sont évitées)
 function confirmer(btn, texte) { if (btn.dataset.armed) return true; btn.dataset.armed = 1; const t = btn.textContent; btn.textContent = texte; setTimeout(() => { delete btn.dataset.armed; btn.textContent = t; }, 3000); return false; }
 
+// Nom de l'élève pour l'enseignant : « Léa M. » et le pseudo en petit
+const nomEleve = (e) => (e.nom ? `${esc(e.nom)} <small class="pseudo">${esc(e.pseudo)}</small>` : `${esc(e.pseudo)} <span class="pill mid">nom à compléter</span>`);
+const nomCourt = (e) => e.nom || e.pseudo;
+
 /* ---------- Présence des élèves (mise à jour toutes les 30 secondes) ---------- */
 let PRES = {}, PRES_CLASSE = [];
 const dateUTC = (s) => (s ? new Date(String(s).replace(' ', 'T') + (/Z|[+-]\d\d:?\d\d$/.test(s) ? '' : 'Z')) : null);
@@ -124,7 +128,7 @@ async function vueClasse(id) {
         <div class="legend">${[1, 2, 3, 4].map((k) => `<span><i style="background:${COUL_NIV[k]}"></i>${NIVEAUX[k]}</span>`).join('')}</div></div>
       ${faibles.length ? `<p class="mini" style="margin:0 0 10px">À retravailler en classe : <b>${faibles.map(esc).join(' · ')}</b></p>` : ''}
       <div class="tbl-wrap grille"><table><tr><th>Élève</th>${vs.map((v) => `<th style="font-size:.7rem;text-transform:none;letter-spacing:0;min-width:70px">${esc(v.variable)}</th>`).join('')}<th>Étapes</th><th></th></tr>
-      ${d.eleves.map((e) => { const ef = etapesFaites(e.id, n); return `<tr><th scope="row" style="text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--ink)">${esc(e.pseudo)}</th>${vs.map((v) => `<td class="cell">${sq(((d.grille[e.id] || {})[n] || {})[v.id] || 0)}</td>`).join('')}
+      ${d.eleves.map((e) => { const ef = etapesFaites(e.id, n); return `<tr><th scope="row" style="text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--ink);font-weight:600">${esc(nomCourt(e))}</th>${vs.map((v) => `<td class="cell">${sq(((d.grille[e.id] || {})[n] || {})[v.id] || 0)}</td>`).join('')}
         <td style="white-space:nowrap">${ef.faites}/7 · <span class="stars" style="font-size:.9rem">★</span>${ef.etoiles}</td><td><button class="btn sm ghost" data-fiche="${e.id}" data-n="${n}">Fiche</button></td></tr>`; }).join('')}</table></div></div>`;
   }).join('');
   $('#main').innerHTML = `
@@ -134,9 +138,9 @@ async function vueClasse(id) {
       <div class="kpi"><div class="k">Objectif de classe</div><div class="bar" style="margin:10px 0 6px"><i style="width:${Math.min(100, (o.atteint / o.cible) * 100)}%"></i></div>
         <form id="objForm" class="inline-form" style="gap:6px"><label class="mini" for="objIn">Cible</label><input id="objIn" type="number" min="1" max="10000" value="${o.cible}" class="small-input" style="width:6em"><button class="btn sm ghost">Enregistrer</button></form></div></div>
     ${grilles || '<div class="card mini">La grille de maîtrise apparaîtra quand les élèves auront répondu à des questions.</div>'}
-    <div class="card"><h3>Élèves</h3>${d.eleves.length ? `<div class="tbl-wrap"><table><tr><th>Pseudo</th><th>En ce moment</th><th>Parties jouées</th><th></th></tr>
-      ${d.eleves.map((e) => `<tr><td><b>${esc(e.pseudo)}</b>${e.a_pin ? '' : ' <span class="pill mid">code à choisir</span>'}</td><td class="pres" data-pres="${e.id}" style="font-size:.85rem">${quand(e.derniere_activite)}</td><td>${d.parties[e.id] || 0}</td>
-      <td><div class="actions"><button class="btn sm ghost" data-pin="${e.id}">Réinitialiser le code</button><button class="btn sm danger" data-del="${e.id}">Supprimer</button></div></td></tr>`).join('')}</table></div>`
+    <div class="card"><h3>Élèves</h3>${d.eleves.length ? `<div class="tbl-wrap"><table><tr><th>Élève</th><th>En ce moment</th><th>Parties jouées</th><th></th></tr>
+      ${d.eleves.map((e) => `<tr><td><b>${nomEleve(e)}</b>${e.a_pin ? '' : ' <span class="pill mid">code à choisir</span>'}</td><td class="pres" data-pres="${e.id}" style="font-size:.85rem">${quand(e.derniere_activite)}</td><td>${d.parties[e.id] || 0}</td>
+      <td><div class="actions"><button class="btn sm ghost" data-nom="${e.id}">${e.nom ? 'Modifier le nom' : 'Ajouter le nom'}</button><button class="btn sm ghost" data-pin="${e.id}">Réinitialiser le code</button><button class="btn sm danger" data-del="${e.id}">Supprimer</button></div></td></tr>`).join('')}</table></div>`
       : `<p style="color:var(--ink-soft);margin:0">Aucun élève connecté pour l'instant. Donne-leur le code <b>${esc(c.code)}</b> et l'adresse de la page d'accueil.</p>`}</div>
     <div class="card"><h3>Étapes visibles pour les élèves</h3><p class="mini" style="margin:0">Une étape masquée est sautée : elle ne bloque pas la suivante. S'entraîner reste toujours visible.</p>
       <div class="vis" id="vis">${ETAPES.filter((e) => e.id !== 'entrainer').map((e) => `<label class="vrow"><input type="checkbox" data-k="${e.id}" ${r.etapes[e.id] !== false ? 'checked' : ''}><span><b>${e.nom}</b><small>${esc(e.desc)}</small></span></label>${e.id === 'comprendre' ? `<label class="vrow sub" style="${r.etapes.comprendre !== false ? 'opacity:.5' : ''}"><input type="checkbox" data-k="auto" ${r.auto ? 'checked' : ''} ${r.etapes.comprendre !== false ? 'disabled' : ''}><span><b>Dévoiler « Comprendre » après 2 erreurs</b><small>Si l'étape est masquée, elle s'ouvre pour l'élève dès qu'il se trompe deux fois dans une série.</small></span></label>` : ''}`).join('')}</div>
@@ -176,8 +180,19 @@ async function vueClasse(id) {
   $('#melangeCard').addEventListener('change', majMel); majMel();
   $('#objForm').addEventListener('submit', async (e) => { e.preventDefault(); const v = parseInt($('#objIn').value, 10); if (v > 0) { await sauver({ objectif: v }); vueClasse(id); } });
   $('#main').onclick = async (e) => {
-    const pin = e.target.closest('[data-pin]'), del = e.target.closest('[data-del]'), fi = e.target.closest('[data-fiche]');
-    if (fi) return vueFiche(id, +fi.dataset.fiche, fi.dataset.n, d.eleves.find((x) => x.id === +fi.dataset.fiche)?.pseudo);
+    const pin = e.target.closest('[data-pin]'), del = e.target.closest('[data-del]'), fi = e.target.closest('[data-fiche]'), nm = e.target.closest('[data-nom]');
+    if (nm) {
+      const el = d.eleves.find((x) => x.id === +nm.dataset.nom), td = nm.closest('tr').firstElementChild;
+      const [pr = '', ini = ''] = (el.nom || '').replace(/\.$/, '').split(/ (?=\S$)/);
+      td.innerHTML = `<form class="nom-form"><input name="p" value="${esc(pr)}" placeholder="Prénom" maxlength="30" aria-label="Prénom" required><input name="i" value="${esc(ini)}" placeholder="I" maxlength="1" aria-label="Initiale du nom" required style="width:3em;text-align:center;text-transform:uppercase"><button class="btn sm">OK</button></form><small class="pseudo">${esc(el.pseudo)}</small>`;
+      td.querySelector('input').focus();
+      td.querySelector('form').onsubmit = async (ev) => {
+        ev.preventDefault();
+        try { await api('/api/prof/eleves/' + el.id, { method: 'PATCH', body: { prenom: ev.target.p.value, initiale: ev.target.i.value } }); toast('Nom enregistré.'); vueClasse(id); } catch (err) { toast(err.message); }
+      };
+      return;
+    }
+    if (fi) return vueFiche(id, +fi.dataset.fiche, fi.dataset.n, nomCourt(d.eleves.find((x) => x.id === +fi.dataset.fiche) || {}));
     if (pin && confirmer(pin, 'Confirmer ?')) { await api(`/api/prof/eleves/${pin.dataset.pin}/pin`, { method: 'DELETE' }); toast("Code réinitialisé : l'élève en choisira un nouveau à sa prochaine connexion."); vueClasse(id); }
     if (del && confirmer(del, 'Confirmer ?')) { await api(`/api/prof/eleves/${del.dataset.del}`, { method: 'DELETE' }); toast('Élève supprimé.'); vueClasse(id); }
     if (e.target.id === 'delClasse' && confirmer(e.target, 'Cliquer encore pour confirmer')) { await api('/api/prof/classes/' + id, { method: 'DELETE' }); await chargerClasses(); toast('Classe supprimée.'); aller('classes'); }
@@ -262,7 +277,7 @@ async function vueSignalements() {
   $('#main').innerHTML = '<div class="loading">Chargement…</div>';
   let s = []; try { s = await api('/api/prof/signalements'); } catch (e) { toast(e.message); }
   $('#main').innerHTML = `<div class="head"><div class="eyebrow">Retours des testeurs</div><h1>Signalements</h1><p>Les élèves peuvent signaler un problème sur chaque question.</p></div>
-    ${s.length ? `<div class="tbl-wrap"><table><tr><th>Date</th><th>Élève</th><th>Question</th><th>Message</th><th></th></tr>${s.map((x) => `<tr style="${x.traite ? 'opacity:.55' : ''}"><td style="font-size:.85rem">${dateFr(x.created_at)}</td><td>${esc(x.pseudo || '—')}<br><small>${esc(x.classe || '')}</small></td><td style="font-size:.85rem">${esc(CATALOGUE[x.notion]?.titreCourt || x.notion || '')}<br>${esc(x.question)}</td><td>${esc(x.message)}</td><td><button class="btn sm ghost" data-sig="${x.id}" data-t="${x.traite ? 0 : 1}">${x.traite ? 'Rouvrir' : 'Traité'}</button></td></tr>`).join('')}</table></div>` : '<div class="card empty">Aucun signalement pour l\'instant.</div>'}`;
+    ${s.length ? `<div class="tbl-wrap"><table><tr><th>Date</th><th>Élève</th><th>Question</th><th>Message</th><th></th></tr>${s.map((x) => `<tr style="${x.traite ? 'opacity:.55' : ''}"><td style="font-size:.85rem">${dateFr(x.created_at)}</td><td>${esc(x.nom_eleve || x.pseudo || '—')}${x.nom_eleve ? ` <small class="pseudo">${esc(x.pseudo)}</small>` : ''}<br><small>${esc(x.classe || '')}</small></td><td style="font-size:.85rem">${esc(CATALOGUE[x.notion]?.titreCourt || x.notion || '')}<br>${esc(x.question)}</td><td>${esc(x.message)}</td><td><button class="btn sm ghost" data-sig="${x.id}" data-t="${x.traite ? 0 : 1}">${x.traite ? 'Rouvrir' : 'Traité'}</button></td></tr>`).join('')}</table></div>` : '<div class="card empty">Aucun signalement pour l\'instant.</div>'}`;
   $('#main').onclick = async (e) => { const b = e.target.closest('[data-sig]'); if (!b) return; await api('/api/prof/signalements/' + b.dataset.sig, { method: 'PATCH', body: { traite: b.dataset.t === '1' } }); vueSignalements(); };
 }
 

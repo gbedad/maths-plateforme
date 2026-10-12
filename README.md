@@ -122,6 +122,7 @@ Leurs repères (`{m}`, `{q}`, `{bas}`, `{haut}`, `{num}`…) sont listés dans l
 
 ## Données personnelles
 
-- Les élèves sont identifiés par un pseudo. Aucun nom, aucune adresse e-mail.
+- Les élèves se connectent avec un pseudo. À la création du compte, ils indiquent leur prénom et l'initiale de leur nom (« Léa M. ») : seul l'enseignant les voit, et il peut les corriger. Aucune adresse e-mail, aucun nom complet.
+- Prévenir l'établissement (référent RGPD) que la plateforme conserve ces données d'élèves mineurs ; elles sont hébergées en Europe (base D1, région weur).
 - Le code secret est stocké haché. La session est un cookie `HttpOnly` signé, valable 30 jours.
 - Supprimer une classe supprime ses élèves et tous leurs résultats.
