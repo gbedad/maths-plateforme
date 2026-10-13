@@ -329,6 +329,13 @@ sup{font-size:.62em;line-height:0}
 .nav button{text-align:left;padding:9px 12px;border-radius:9px;border:0;background:none;cursor:pointer;font-weight:600;color:var(--ink-soft);display:flex;justify-content:space-between;gap:8px}
 .nav button[aria-current="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px var(--line-strong)}
 .nav .sep{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);padding:14px 12px 4px}
+/* Tables, séquence 1 : bonnes réponses vert clair, mauvaises rouge clair, réponse de l'élève marquée ; correction en noir */
+#s1fb .choice.good{border:1.5px solid color-mix(in srgb,var(--ok) 55%,var(--surface));background:color-mix(in srgb,var(--ok) 7%,var(--surface));box-shadow:none;opacity:1}
+#s1fb .choice.bad{border:1.5px solid color-mix(in srgb,var(--ko) 55%,var(--surface));background:color-mix(in srgb,var(--ko) 7%,var(--surface));box-shadow:none;opacity:1}
+#s1fb .choice.good .l{color:var(--ok)} #s1fb .choice.bad .l{color:var(--ko)}
+#s1fb .choice.choisi{border-width:2px}
+#s1fb .choice.choisi .rep-tag{color:var(--ink);font-weight:800}
+#s1why .why-verdict.correction p{margin:0;font-weight:400;color:var(--ink)}
 .nav-prof{display:block;font-weight:400;font-size:.75rem;color:var(--ink-soft)}
 .lien-card{border-color:var(--accent)}
 .lien-in{flex:1 1 320px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;font-family:var(--f-mono);font-size:.8rem;background:var(--paper);color:var(--ink)}
