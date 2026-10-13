@@ -134,28 +134,19 @@ svg .mk{fill:var(--accent2)} svg .mkl{fill:var(--accent2);font-family:var(--f-bo
 /* Sélection en attente de validation : gris neutre, pour ne suggérer ni « juste » (vert) ni « faux » (rouge) */
 .choice.sel{border-color:var(--ink);background:color-mix(in srgb,var(--ink) 9%,var(--surface));box-shadow:inset 0 0 0 1.5px var(--ink)}
 .choice.sel .l{color:var(--ink)}
-.choice.good{border-color:var(--ok);background:var(--ok-soft);box-shadow:inset 0 0 0 1.5px var(--ok);opacity:1}
-.choice.good .l{color:var(--ok)}
-.choice.bad{border-color:var(--ko);background:var(--ko-soft);box-shadow:inset 0 0 0 1.5px var(--ko);opacity:1}
-.choice.bad .l{color:var(--ko)}
 .choice.dim{opacity:.45}
 /* Réponses oui / non */
 .rep{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:140px;min-height:56px;padding:10px 22px;border-radius:12px;border:2px solid var(--border);background:var(--surface);color:var(--ink);font-weight:800;font-size:1.2rem;cursor:pointer}
 .rep:hover:not([disabled]){border-color:var(--ink-soft)}
 .rep.sel{border-color:var(--ink);background:color-mix(in srgb,var(--ink) 12%,var(--surface));color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
 .rep[disabled]{cursor:default}
-.rep.good{border-color:var(--ok);background:var(--ok);color:var(--surface)}
-.rep.bad{border-color:var(--ko);background:var(--ko);color:var(--surface)}
-.rep.good-ghost{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
 .rep.dim{opacity:.4}
 .rep .rep-tag{font-size:.72rem;font-weight:700;letter-spacing:.02em}
 .choice .rep-tag{display:block;margin-top:4px;font-size:.78rem;font-weight:800;letter-spacing:.02em}
-.choice.good .rep-tag{color:var(--ok)}
-.choice.bad .rep-tag{color:var(--ko)}
 .choice[disabled]{cursor:default}
 .feedback{margin-top:20px;padding:14px 16px;border-radius:8px;background:var(--surface);border:1px solid var(--border);max-width:680px}
 .feedback .hand{font-family:var(--f-display);font-weight:800;font-size:1.05rem;line-height:1.2;margin-bottom:4px;letter-spacing:-.01em}
-.feedback .hand.ok{color:var(--ok)} .feedback .hand.ko{color:var(--accent2)}
+.feedback .hand.ok{color:var(--ok)} .feedback .hand.ko{color:var(--ko)}
 .feedback p{margin:4px 0 0}
 .feedback .lab{font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:var(--ink-soft);margin-top:10px}
 .next{margin-top:16px}
@@ -491,16 +482,8 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .chrono-big{font-family:var(--f-display);font-weight:800;font-size:1.5rem;font-variant-numeric:tabular-nums}
 
 /* Séquence 1 des tables : bilan du calcul et des explications */
-.choice.good-ghost{border-color:var(--ok);background:var(--ok-soft)}
-.choice.good-ghost .rep-tag{color:var(--ok)}
 .calc-bilan{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .calc-bilan .cb{display:inline-block;padding:6px 12px;border-radius:8px;font-weight:800;border:2px solid transparent}
-.calc-bilan .cb.good{background:var(--ok);color:var(--surface)}
-.calc-bilan .cb.bad{background:var(--ko);color:var(--surface)}
-.calc-bilan .cb.good-ghost{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
-.why-verdict{margin-top:10px;padding:10px 14px;border-radius:8px;font-weight:700;border-left:4px solid}
-.why-verdict.ok{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
-.why-verdict.ko{border-color:var(--ko);background:var(--ko-soft);color:var(--ko)}
 
 /* Onglets de la notion : Parcours | Ma maîtrise */
 .onglets{display:flex;gap:4px;margin:14px 0 12px;border-bottom:1.5px solid var(--border)}
@@ -532,7 +515,6 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .next-banner.fin b{display:block}
 
 /* Commentaire après l'explication (séquence 1 des tables) */
-.why-verdict p{margin:6px 0 0;font-weight:400;color:var(--ink)}
 .why-verdict .autre-facon span{display:inline-block;margin-right:6px;padding:1px 8px;border-radius:6px;background:var(--surface);border:1px solid var(--border);font-size:.78rem;font-weight:700;color:var(--ink-soft)}
 .why-verdict .pref{font-style:italic;color:var(--ink-soft)}
 
@@ -570,3 +552,26 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .modal-fond{position:fixed;inset:0;background:rgba(10,20,18,.45);display:grid;place-items:center;padding:16px;z-index:50}
 .modal{max-width:440px;width:100%;display:grid;gap:10px}
 .modal h2{margin:0;font-family:var(--f-display)}
+
+/* ================= Charte des corrections =================
+   Gris        : ton choix, avant de valider (rien n'est encore jugé).
+   Vert clair  : les réponses justes (bord fin).
+   Rouge clair : ta réponse, si elle est fausse (bord fin, même épaisseur).
+   Estompé     : les autres choix.
+   Vert soutenu: la correction, ce qu'il faut retenir.                      */
+.choice.good,.choice.good-ghost{border:1.5px solid var(--ok);background:var(--ok-soft);box-shadow:none;opacity:1}
+.choice.bad{border:1.5px solid var(--ko);background:var(--ko-soft);box-shadow:none;opacity:1}
+.choice.good .l,.choice.good-ghost .l,.choice.good .rep-tag,.choice.good-ghost .rep-tag{color:var(--ok)}
+.choice.bad .l,.choice.bad .rep-tag{color:var(--ko)}
+.rep.good,.rep.good-ghost{border:1.5px solid var(--ok);background:var(--ok-soft);color:var(--ok);box-shadow:none}
+.rep.bad{border:1.5px solid var(--ko);background:var(--ko-soft);color:var(--ko);box-shadow:none}
+.calc-bilan .cb{display:inline-block;padding:6px 12px;border-radius:8px;font-weight:700;border:1.5px solid transparent}
+.calc-bilan .cb.bad{border-color:var(--ko);background:var(--ko-soft);color:var(--ko)}
+.calc-bilan .cb.good,.calc-bilan .cb.good-ghost{border-color:var(--ok);background:var(--ok);color:var(--surface)}
+/* La correction : vert soutenu, quelle que soit la réponse de l'élève */
+.why-verdict,.feedback .corrige{margin-top:12px;padding:12px 16px;border-radius:10px;border:0;border-left:5px solid var(--ok);background:color-mix(in srgb,var(--ok) 30%,var(--surface));color:var(--ink)}
+.why-verdict > b{display:block;font-weight:800}
+.why-verdict.ok > b{color:var(--ok)}
+.why-verdict.ko > b{color:var(--ko)}
+.why-verdict p,.feedback .corrige p{margin:6px 0 0;font-weight:500;color:var(--ink)}
+.feedback .corrige .lab{margin-top:0;color:var(--ok)}

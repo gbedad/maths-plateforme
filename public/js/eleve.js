@@ -475,7 +475,7 @@ function serie(root, questions, { source, titre, onFin }) {
       if (S.phase === 'q1') return `<button class="rep ${S.sel === v ? 'sel' : ''}" data-a="${v}" aria-pressed="${S.sel === v}">${lab}</button>`;
       const r = S.cur, choisi = r.a1 === v, juste = q.correct === v;
       const cls = choisi ? (r.ok1 ? 'good' : 'bad') : juste ? 'good-ghost' : 'dim';
-      const marque = choisi ? `<span class="rep-tag">${r.ok1 ? '✓' : '✗'} Ta réponse</span>` : juste ? '<span class="rep-tag">✓ Bonne réponse</span>' : '';
+      const marque = choisi ? `<span class="rep-tag">${r.ok1 ? '✓' : '✗'} Ta réponse</span>` : juste ? '<span class="rep-tag">✓ Juste</span>' : '';
       return `<button class="rep ${cls}" disabled>${lab}${marque}</button>`;
     };
     h += `<div class="answers">${repBtn('oui', 'Oui')}${repBtn('non', 'Non')}</div>`;
@@ -487,7 +487,7 @@ function serie(root, questions, { source, titre, onFin }) {
       else {
         h += '<div class="why-title">Bien. Mais pourquoi ?</div><div class="choices">' + S.order.map((idx, k) => {
           const cls = S.phase === 'done' ? (idx === q.juste ? 'good' : idx === r.pick ? 'bad' : 'dim') : idx === r.pick ? 'sel' : '';
-          const marque = S.phase !== 'done' ? '' : idx === r.pick ? `<span class="rep-tag">${idx === q.juste ? '✓' : '✗'} Ta réponse</span>` : idx === q.juste ? '<span class="rep-tag">✓ Bonne réponse</span>' : '';
+          const marque = S.phase !== 'done' ? '' : idx === r.pick ? `<span class="rep-tag">${idx === q.juste ? '✓' : '✗'} Ta réponse</span>` : idx === q.juste ? '<span class="rep-tag">✓ Juste</span>' : '';
           return `<button class="choice ${cls}" data-p="${idx}" ${S.phase === 'done' ? 'disabled' : `aria-pressed="${idx === r.pick}"`}><span class="l">${LET[k]})</span><span>${q.pourquoi[idx]}${marque}</span></button>`;
         }).join('') + '</div>';
         // Tant que l'élève n'a pas validé, il peut changer de justification
@@ -500,7 +500,7 @@ function serie(root, questions, { source, titre, onFin }) {
     root.innerHTML = h;
     const nb = $('#nextBtn', root); if (nb) nb.focus({ preventScroll: true });
   }
-  const fb = (ok, extra, q) => `<div class="feedback" role="status"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div>${extra ? `<p>${esc(extra)}</p>` : ''}${q.texte ? `<div class="lab">Corrigé</div><p>${q.texte}</p>` : ''}</div>`;
+  const fb = (ok, extra, q) => `<div class="feedback" role="status"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div>${extra ? `<p>${esc(extra)}</p>` : ''}${q.texte ? `<div class="corrige"><div class="lab">Corrigé</div><p>${q.texte}</p></div>` : ''}</div>`;
   root.onclick = (e) => {
     const a = e.target.closest('[data-a]'), p = e.target.closest('[data-p]'), q = S.seq[S.i];
     if (a && S.phase === 'q1') { S.sel = a.dataset.a; render(); $(`[data-a="${S.sel}"]`, root)?.focus({ preventScroll: true }); }

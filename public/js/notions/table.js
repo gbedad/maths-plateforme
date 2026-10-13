@@ -218,7 +218,7 @@ function explorerTable(t) {
               c.disabled = true; c.classList.remove('sel'); c.removeAttribute('aria-pressed');
               const choisi = j === pick, bon = opts[j].ok;
               c.classList.add(choisi ? (o.ok ? 'good' : 'bad') : bon ? 'good-ghost' : 'dim');
-              const tag = choisi ? `${o.ok ? '✓' : '✗'} Ton explication` : bon ? '✓ Aussi juste' : '';
+              const tag = choisi ? `${o.ok ? '✓' : '✗'} Ton explication` : bon ? '✓ Juste' : '';
               if (tag) c.lastElementChild.insertAdjacentHTML('beforeend', `<span class="rep-tag">${tag}</span>`);
             });
             if (o.ok) strats.push(o.cat);
