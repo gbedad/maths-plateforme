@@ -150,6 +150,9 @@ function renderCarte() {
     const txt = !ouv ? "S'ouvre à la fin de la notion précédente" : et.termine ? `Parcours terminé · ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur ${etoilesTotal(n)}` : `En cours · ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur ${etoilesTotal(n)}`;
     return `<li><button class="notion ${id === N.id && !VUE_MELANGE ? 'active' : ''}" data-notion="${id}" ${ouv ? '' : 'disabled'}><span class="sym" style="${n.symbole.length > 2 ? 'font-size:1rem' : ''}">${n.symbole.replace(/^×(\d+)$/, '×\u00a0$1')}</span><span class="nm">${n.titreCourt}<span>${txt}</span></span><span class="tag">${ouv ? '' : 'Bientôt'}</span></button></li>`;
   }).join('') + N.parcours.filter((p) => !p.id).map((p) => `<li><button class="notion" disabled><span class="sym" style="${p.sym.length > 2 ? 'font-size:1rem' : ''}">${p.sym}</span><span class="nm">${p.nom}<span>Pas encore disponible</span></span><span class="tag">Bientôt</span></button></li>`).join('');
+  // Téléphone : la carte est une bande horizontale, on y fait apparaître la notion active
+  const ul = $("#carte"), act = $("#carte .notion.active");
+  if (act && ul.scrollWidth > ul.clientWidth) ul.scrollLeft = Math.max(0, act.parentElement.offsetLeft - ul.offsetLeft - 16);
 }
 function renderObjectif() {
   const o = ME.objectif, pc = Math.min(100, Math.round((o.atteint / o.cible) * 100));
@@ -366,14 +369,17 @@ function jouer(root) {
       ${N.sansIntrus ? '' : `<button class="game-pick" data-game="g2"><span class="t">Trouve l'intrus</span><span class="d">4 nombres, un seul ne va pas avec les autres. 8 manches.</span></button>`}
       ${extras.map((x) => `<button class="game-pick" data-game="x-${x.id}"><span class="t">${esc(x.titre)}</span><span class="d">${esc(x.desc)}</span></button>`).join('')}
     </div>
+    <p class="mini game-desc" id="gDesc"></p>
     <div class="card" id="g1"><div class="hud"><span><span class="k">Vies</span><span class="v lives" id="g1lives">♥♥♥</span></span><span><span class="k">Temps</span><span class="v" id="g1time">30 s</span></span></div>
       <div class="arena" id="arena"></div><div class="gmsg" id="g1msg" role="status"></div></div>
     <div class="card" id="g2" hidden></div>
     ${extras.map((x) => `<div class="card jeu-x" id="x-${x.id}" hidden></div>`).join('')}
     <div class="row" id="jSuite">${PROG.jouer?.fait ? suite('jouer') : ''}</div>`;
+  $('#gDesc').textContent = $('.game-pick.sel .d', root)?.textContent || '';
   $('.games', root).addEventListener('click', (e) => {
     const b = e.target.closest('.game-pick'); if (!b) return;
     $$('.game-pick', root).forEach((x) => x.classList.toggle('sel', x === b));
+    $('#gDesc').textContent = $('.d', b)?.textContent || '';
     stopJeux();
     const g = b.dataset.game;
     $('#g1').hidden = g !== 'g1'; $('#g2').hidden = g !== 'g2';

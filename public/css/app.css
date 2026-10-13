@@ -589,3 +589,60 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .why-verdict.ko > b{color:var(--ko)}
 .why-verdict p,.feedback .corrige p{margin:6px 0 0;font-weight:500;color:var(--ink)}
 .feedback .corrige .lab{margin-top:0;color:var(--ok)}
+
+/* ---------- Téléphone ---------- */
+@media (max-width:860px){
+  /* La carte devient une bande de pastilles qui défile à l'horizontale, au-dessus du contenu */
+  .shell{display:flex;flex-direction:column;gap:14px;padding:12px 16px 24px}
+  .path{display:contents}
+  .path > .eyebrow{display:none}
+  .notions{order:0;flex-direction:row;overflow-x:auto;gap:6px;margin:0 -16px;padding:2px 16px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch;scroll-padding:0 16px}
+  .notions::-webkit-scrollbar{display:none}
+  .notions li{flex:0 0 auto}
+  .notion{grid-template-columns:auto auto;gap:6px;width:auto;padding:6px 12px 6px 10px;border:1px solid var(--border);border-radius:999px;background:var(--surface)}
+  .notion .sym{font-size:1.05rem!important;line-height:1}
+  .notion .nm{font-size:.85rem;white-space:nowrap}
+  .notion .nm span,.notion .tag{display:none}
+  .notion.active{border-color:var(--accent);background:var(--accent-soft)}
+  #main{order:1;min-width:0}
+  .objectif{order:2}
+}
+@media (max-width:560px){
+  /* Barre du haut sur deux lignes : [logo · titre … Se déconnecter] puis [semaine … pseudo] */
+  .top{padding:10px 16px;gap:8px 10px}
+  .brand{font-size:1.05rem;gap:8px;flex:1 0 auto;white-space:nowrap}
+  .brand .logo{width:30px;height:30px;font-size:1.1rem;border-radius:8px}
+  .who{display:contents}
+  .who #logout{order:1;font-size:.85rem}
+  .who .week{order:2}
+  .who .moi-btn{order:3;margin-left:auto;font-size:.85rem;flex:1 1 0;min-width:0;max-width:fit-content;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .week span{width:20px;height:20px;font-size:.64rem}
+}
+@media (max-width:370px){
+  .brand{font-size:.95rem} .brand .logo{width:28px;height:28px;font-size:1rem}
+  .who #logout{font-size:.8rem}
+  .week{gap:2px} .week span{width:18px}
+}
+@media (max-width:340px){.brand{font-size:0}.brand .logo{font-size:1rem}}
+@media (max-width:560px){
+  /* Explorer et Contre la montre : la question d'abord, la table ensuite, sur deux colonnes */
+  .seq-grid{gap:14px}
+  .seq-grid > :not(.tbl-t){order:-1}
+  .tbl-t:not(.lecture){grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(7,auto);grid-auto-flow:column;gap:3px 6px}
+  .tbl-t:not(.lecture) .tl-row{grid-template-columns:minmax(0,1fr) 3.1em 10px;gap:5px;padding:2px 4px}
+  .tbl-t:not(.lecture) .tl-calc{font-size:.95rem}
+  .tbl-t:not(.lecture) .tl-box{min-height:28px;font-size:.98rem}
+  .tl-x{font-size:.85rem;margin:0}
+  .calc-form .statement{font-size:1.7rem}
+  .calc-in{font-size:1.4rem;width:4.2em}
+  /* Jouer : les jeux en une rangée de trois, la description du jeu choisi en dessous */
+  .games{grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px}
+  .game-pick{padding:10px 8px;text-align:center;place-items:center;align-content:center}
+  .game-pick .t{font-size:.95rem;line-height:1.2}
+  .game-pick .d,.game-pick .best{display:none}
+  .game-desc{display:block!important;margin:8px 2px 0}
+  .steps{gap:3px;flex-wrap:nowrap}
+  .steps i{width:auto;flex:1 1 0;min-width:8px}
+  .ex-top .steps{flex:1 1 100%}
+}
+.game-desc{display:none}
