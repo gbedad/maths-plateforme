@@ -199,7 +199,7 @@ function explorerTable(t) {
             ? `<div class="calc-bilan"><span class="cb good">✓ ${ecrire(sens, t, k)} = ${v}</span></div>`
             : `<div class="calc-bilan"><span class="cb bad">✗ Ta réponse : ${v}</span><span class="cb good-ghost">✓ ${ecrire(sens, t, k)} = ${t * k}</span></div>`;
           $('#s1fb').innerHTML = `<div class="feedback"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div>${bilanCalc}</div>
-            <div class="why-title">Pourquoi ?</div><p class="mini" style="margin:-6px 0 8px">Choisis une seule réponse : celle qui explique le mieux comment ${ok ? 'tu as trouvé' : 'on trouve'} le résultat. Tu peux changer d'avis avant de valider.</p>
+            <div class="why-title">Pourquoi ?</div><p class="mini" style="margin:-6px 0 8px">Choisis une seule réponse : celle qui explique le mieux comment ${ok ? 'tu as trouvé' : 'on trouve'} le résultat.</p>
             <div class="choices">${opts.map((o, j) => `<button class="choice" data-o="${j}" aria-pressed="false"><span class="l">${'abcd'[j]})</span><span>${esc(o.texte)}</span></button>`).join('')}</div>
             <div class="next" id="s1valBox"><span class="mini" id="s1valMsg">Choisis une explication.</span><button class="btn" id="s1val" disabled>Valider mon explication</button></div><div id="s1why"></div>`;
           let pick = null;
