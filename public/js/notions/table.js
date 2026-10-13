@@ -187,7 +187,7 @@ function explorerTable(t) {
       let n = 0;
       function question() {
         const k = ORDRE[n];
-        root.innerHTML = `${intro(`Séquence 1 sur 3 · question ${n + 1} sur ${ORDRE.length}`, `Reconstitue la table de ${t}. Les questions ne viennent pas dans l'ordre : complète la case en couleur.`)}
+        root.innerHTML = `${intro(`Séquence 1 sur 3 · question ${n + 1} sur ${ORDRE.length}`, `Reconstitue la table de ${t}. Les questions ne viennent pas dans l'ordre.`)}
           <div class="seq-grid">${tableHTML(t, sens, etat, k)}<div class="seq-side">
             <form class="calc-form" autocomplete="off"><span class="statement" style="margin:0">${ecrire(sens, t, k)} =</span><input class="calc-in" inputmode="numeric" maxlength="4" aria-label="Résultat"><button class="btn">Valider</button></form>
             <div id="s1fb" role="status"></div></div></div>`;
