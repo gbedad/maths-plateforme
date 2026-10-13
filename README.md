@@ -70,6 +70,15 @@ Wrangler affiche ensuite l'adresse du site, du type `https://maths-plateforme.<t
 
 **Déploiement automatique (facultatif).** Mets le dossier sur GitHub. Dans le tableau de bord Cloudflare, relie le dépôt au Worker : Workers & Pages → le Worker → Settings → Builds. Commande de déploiement : `npx wrangler deploy`. Chaque `git push` met alors le site à jour.
 
+## Comptes enseignants
+
+- **Premier démarrage** : sur `/prof.html`, laisse l'adresse e-mail vide et entre `ADMIN_PASSWORD`. Un écran te fait créer ton compte **superadmin** (prénom, nom, e-mail, mot de passe). Les classes existantes te sont rattachées.
+- **Inscrire un enseignant** : menu Administration → Enseignants → Inscrire. La plateforme affiche un **lien d'activation** (valable 7 jours, à usage unique) à lui transmettre ; il y choisit son mot de passe.
+- Chaque enseignant ne voit que **ses** classes et ses élèves ; le superadmin voit tout. La banque d'exercices est **commune** et seul le superadmin peut l'importer.
+- Mot de passe oublié : bouton « Lien nouveau mot de passe ». Un compte peut être désactivé / réactivé.
+- **Accès de secours** : identifiant `admin` + `ADMIN_PASSWORD` ouvre le compte superadmin.
+- Sécurité : mots de passe hachés (PBKDF2-SHA256 salé), blocage 5 minutes après 5 essais ratés, cloisonnement vérifié côté serveur.
+
 ## Premier test en classe
 
 1. Ouvre `/prof.html` et connecte-toi avec `ADMIN_PASSWORD`.
