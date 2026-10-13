@@ -1,7 +1,7 @@
 // Application élève : parcours en 7 étapes
 import { $, $$, rnd, shuffle, esc, api, toast, htmlToTxt } from './outils.js';
 import { tirerSerie, tirerQuestion } from './moteur.js';
-import { ETAPES, REGLES_ETOILES, NIVEAUX, COUL_NIV, REGLE_NIV, etatEtapes, etoilesHTML, ficheHTML, dansJours } from './parcours.js';
+import { ETAPES, REGLES_ETOILES, NIVEAUX, COUL_NIV, REGLE_NIV, etatEtapes, etoilesHTML, etoilesMax, etoilesTotal, ficheHTML, dansJours } from './parcours.js';
 import naturels from './notions/entiers-naturels.js';
 import scientifique from './notions/ecriture-scientifique.js';
 import tables from './notions/tables-multiplication.js';
@@ -147,7 +147,7 @@ function renderCarte() {
   const m = melange();
   $('#carte').innerHTML = (m ? `<li><button class="notion melange ${VUE_MELANGE ? 'active' : ''}" data-melange="1"><span class="sym">×?</span><span class="nm">Tables mélangées<span>${m.tables.length === 8 ? 'Toutes les tables' : 'Tables ' + m.tables.join(', ')} · ${m.nb} calculs</span></span><span class="tag"></span></button></li>` : '') + DISPO.map((id) => {
     const n = CATALOGUE[id], ouv = notionOuverte(id), et = etatDe(id), etoiles = et.etapes.reduce((a, e) => a + (e.etoiles || 0), 0);
-    const txt = !ouv ? "S'ouvre à la fin de la notion précédente" : et.termine ? `Parcours terminé · ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur 9` : `En cours · ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur 9`;
+    const txt = !ouv ? "S'ouvre à la fin de la notion précédente" : et.termine ? `Parcours terminé · ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur ${etoilesTotal(n)}` : `En cours · ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur ${etoilesTotal(n)}`;
     return `<li><button class="notion ${id === N.id && !VUE_MELANGE ? 'active' : ''}" data-notion="${id}" ${ouv ? '' : 'disabled'}><span class="sym" style="${n.symbole.length > 2 ? 'font-size:1rem' : ''}">${n.symbole}</span><span class="nm">${n.titreCourt}<span>${txt}</span></span><span class="tag">${ouv ? '' : 'Bientôt'}</span></button></li>`;
   }).join('') + N.parcours.filter((p) => !p.id).map((p) => `<li><button class="notion" disabled><span class="sym" style="${p.sym.length > 2 ? 'font-size:1rem' : ''}">${p.sym}</span><span class="nm">${p.nom}<span>Pas encore disponible</span></span><span class="tag">Bientôt</span></button></li>`).join('');
 }
@@ -217,7 +217,7 @@ function vueParcours() {
       const lab = { fait: 'Terminé', cours: 'À faire maintenant', ouvert: 'Ouvert', verrou: 'Verrouillé' }[st];
       return `<li class="etape ${st}"><span class="node">${e.fait ? '✓' : i + 1}</span>
         <button class="etape-card" data-go="${e.id}" ${e.ouvert ? '' : 'disabled'}>
-          <span class="etape-l1"><b>${e.nom}</b>${e.etoiles !== false && ETAPES.find((x) => x.id === e.id).etoiles ? etoilesHTML(e.etoiles) : ''}</span>
+          <span class="etape-l1"><b>${e.nom}</b>${e.etoiles !== false && etoilesMax(N, e.id) ? etoilesHTML(e.etoiles, true, etoilesMax(N, e.id)) : ''}</span>
           <span class="mini">${esc(descEtape(e))}</span><span class="pill">${lab}</span></button></li>`;
     }).join('')}</ol>
     ${apercuMaitrise()}`;
@@ -235,7 +235,7 @@ function ouvrirEtape(id) {
   main().innerHTML = `
     <div class="etape-head"><button class="linkbtn" data-go="parcours">← Parcours</button>
       <div class="eyebrow">Étape ${idx} · ${N.titreCourt}</div>
-      <h1>${e.nom}${regles ? ' ' + etoilesHTML(PROG[id]?.etoiles || 0) : ''}</h1>
+      <h1>${e.nom}${regles ? ' ' + etoilesHTML(PROG[id]?.etoiles || 0, true, etoilesMax(N, id) || 3) : ''}</h1>
       ${regles ? `<ul class="regles">${regles.map((r, i) => `<li class="${(PROG[id]?.etoiles || 0) > i ? 'ok' : ''}">${'★'.repeat(i + 1)} ${r}</li>`).join('')}</ul>` : ''}</div>
     <div id="etape" class="etape-body"></div>`;
   const root = $('#etape');
@@ -656,7 +656,7 @@ function vueMoi() {
     <section><h3 style="margin:22px 0 10px">Mes notions</h3><div class="moi-notions">${notions.map((id) => {
       const n = CATALOGUE[id], et = etatDe(id), etoiles = et.etapes.reduce((a, e) => a + (e.etoiles || 0), 0), b = bilanNotion(id);
       return `<button class="card moi-notion" data-notion="${id}"><span class="sym">${n.symbole}</span><span class="mn-t"><b>${esc(n.titreCourt)}</b>
-        <span class="mini">${et.termine ? 'Parcours terminé' : 'En cours'} · <span class="stars">★</span> ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur 9</span>
+        <span class="mini">${et.termine ? 'Parcours terminé' : 'En cours'} · <span class="stars">★</span> ${etoiles} étoile${etoiles > 1 ? 's' : ''} sur ${etoilesTotal(n)}</span>
         <span class="mini">${b.maitrisees} maîtrisée${b.maitrisees > 1 ? 's' : ''} sur ${b.total} · ${pluriel(b.ancrees, 'ancrée')}${b.aReviser ? ` · <b class="a-reviser">${b.aReviser} à réviser</b>` : ''}</span></span></button>`; }).join('')}</div></section>
     <section><h3 style="margin:22px 0 10px">Mes badges</h3><div class="badges">${ME.badges.map((b) => `<div class="badge ${b.got ? 'got' : ''}"><span class="medal" aria-hidden="true">${b.got ? '★' : '☆'}</span><b>${esc(b.nom)}</b><span class="mini">${esc(b.desc)}</span><span class="pill ${b.got ? 'ok' : ''}">${b.got ? 'Obtenu' : esc(b.prog || 'À obtenir')}</span></div>`).join('')}</div></section>`;
   window.scrollTo({ top: 0 });

@@ -464,8 +464,9 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .tl-box{min-height:32px;border:1.5px solid var(--border);border-radius:8px;display:grid;place-items:center;font-family:var(--f-math);font-size:1.12rem;font-weight:700;background:var(--surface)}
 .tl-row.actif{background:var(--accent-soft)}
 .tl-row.actif .tl-box{border-color:var(--accent);border-width:2px}
-.tl-row.juste .tl-box,.tl-box.juste{border-color:color-mix(in srgb,var(--ok) 55%,var(--surface));color:var(--ok);background:color-mix(in srgb,var(--ok) 7%,var(--surface))}
-.tl-row.faux .tl-box{border-color:color-mix(in srgb,var(--ko) 55%,var(--surface));color:var(--ko);background:color-mix(in srgb,var(--ko) 7%,var(--surface))}
+.tl-row.juste .tl-box,.tl-box.juste{border-color:var(--border);color:var(--ink);background:var(--surface)}
+.tl-row.faux .tl-box{border-color:var(--border);color:var(--ink);background:var(--surface)}
+.tl-x{color:var(--ko);font-weight:800;font-size:1rem;margin-left:2px}
 .tbl-t.lecture .tl-row{grid-template-columns:7.5em 4.5em minmax(0,1fr)}
 .calc-form{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .calc-in{font-family:var(--f-math);font-size:1.6rem;width:5em;padding:6px 10px;border:2px solid var(--border);border-radius:10px;background:var(--paper);color:var(--ink);text-align:center}
