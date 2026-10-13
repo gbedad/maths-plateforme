@@ -464,8 +464,8 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .tl-box{min-height:32px;border:1.5px solid var(--border);border-radius:8px;display:grid;place-items:center;font-family:var(--f-math);font-size:1.12rem;font-weight:700;background:var(--surface)}
 .tl-row.actif{background:var(--accent-soft)}
 .tl-row.actif .tl-box{border-color:var(--accent);border-width:2px}
-.tl-row.juste .tl-box,.tl-box.juste{border-color:var(--ok);color:var(--ok);background:var(--ok-soft)}
-.tl-row.faux .tl-box{border-color:var(--ko);color:var(--ko);background:var(--ko-soft)}
+.tl-row.juste .tl-box,.tl-box.juste{border-color:color-mix(in srgb,var(--ok) 55%,var(--surface));color:var(--ok);background:color-mix(in srgb,var(--ok) 7%,var(--surface))}
+.tl-row.faux .tl-box{border-color:color-mix(in srgb,var(--ko) 55%,var(--surface));color:var(--ko);background:color-mix(in srgb,var(--ko) 7%,var(--surface))}
 .tbl-t.lecture .tl-row{grid-template-columns:7.5em 4.5em minmax(0,1fr)}
 .calc-form{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
 .calc-in{font-family:var(--f-math);font-size:1.6rem;width:5em;padding:6px 10px;border:2px solid var(--border);border-radius:10px;background:var(--paper);color:var(--ink);text-align:center}
@@ -576,8 +576,8 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .rep.good,.rep.good-ghost{border:1.5px solid var(--ok);background:var(--ok-soft);color:var(--ok);box-shadow:none}
 .rep.bad{border:1.5px solid var(--ko);background:var(--ko-soft);color:var(--ko);box-shadow:none}
 .calc-bilan .cb{display:inline-block;padding:6px 12px;border-radius:8px;font-weight:700;border:1.5px solid transparent}
-.calc-bilan .cb.bad{border-color:var(--ko);background:var(--ko-soft);color:var(--ko)}
-.calc-bilan .cb.good,.calc-bilan .cb.good-ghost{border-color:var(--ok);background:var(--ok);color:var(--surface)}
+.calc-bilan .cb.bad{border-color:color-mix(in srgb,var(--ko) 55%,var(--surface));background:color-mix(in srgb,var(--ko) 7%,var(--surface));color:var(--ko)}
+.calc-bilan .cb.good,.calc-bilan .cb.good-ghost{border-color:color-mix(in srgb,var(--ok) 55%,var(--surface));background:color-mix(in srgb,var(--ok) 7%,var(--surface));color:var(--ok)}
 /* La correction : vert soutenu, quelle que soit la réponse de l'élève */
 .why-verdict,.feedback .corrige{margin-top:12px;padding:12px 16px;border-radius:0;border:0;border-left:5px solid var(--ok);background:transparent;color:var(--ink)}
 .why-verdict > b{display:block;font-weight:800}
