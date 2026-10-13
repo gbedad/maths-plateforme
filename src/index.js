@@ -40,12 +40,29 @@ async function route(req, env, url) {
   // Enseignant
   if (p === '/api/prof/login' && m === 'POST') return profLogin(req, env);
   if (p === '/api/logout' && m === 'POST') return deconnecter(req, url);
+  if (p === '/api/prof/activation' && m === 'GET') return verifierActivation(env, url.searchParams.get('jeton'));
+  if (p === '/api/prof/activation' && m === 'POST') return activerCompte(req, env, url);
   if (p.startsWith('/api/prof/')) {
-    await exigerSession(req, env, 'prof');
-    if (p === '/api/prof/moi' && m === 'GET') return json({ role: 'prof' });
-    if (p === '/api/prof/classes' && m === 'GET') return listerClasses(env);
-    if (p === '/api/prof/presence' && m === 'GET') return presenceClasses(env, url.searchParams.get('classe'));
-    if (p === '/api/prof/classes' && m === 'POST') return creerClasse(req, env);
+    const me = await exigerProf(req, env);
+    if (p === '/api/prof/moi' && m === 'GET') return json({ role: 'prof', ...me });
+    if (p === '/api/prof/installation' && m === 'POST') return installerSuperadmin(req, env, url, me);
+    if (me.installation) throw new HttpError(403, 'Crée d’abord ton compte superadmin.');
+    // Superadmin : gestion des comptes enseignants
+    if (p.startsWith('/api/prof/enseignants')) {
+      if (!me.admin) throw new HttpError(403, 'Réservé au superadmin.');
+      if (p === '/api/prof/enseignants' && m === 'GET') return listerEnseignants(env);
+      if (p === '/api/prof/enseignants' && m === 'POST') return creerEnseignant(req, env, url);
+      if ((r = p.match(/^\/api\/prof\/enseignants\/(\d+)$/)) && m === 'PATCH') return modifierEnseignant(req, env, +r[1], me);
+      if ((r = p.match(/^\/api\/prof\/enseignants\/(\d+)\/lien$/)) && m === 'POST') return nouveauLien(env, url, +r[1]);
+    }
+    // Cloisonnement : un enseignant n'agit que sur ses classes et ses élèves (le superadmin sur tout)
+    if ((r = p.match(/^\/api\/prof\/classes\/(\d+)/))) await verifierClasse(env, me, +r[1]);
+    if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)/))) await verifierEleve(env, me, +r[1]);
+    if ((r = p.match(/^\/api\/prof\/signalements\/(\d+)/))) await verifierSignalement(env, me, +r[1]);
+    if (p === '/api/prof/presence' && m === 'GET' && url.searchParams.get('classe')) await verifierClasse(env, me, +url.searchParams.get('classe'));
+    if (p === '/api/prof/classes' && m === 'GET') return listerClasses(env, me);
+    if (p === '/api/prof/presence' && m === 'GET') return presenceClasses(env, url.searchParams.get('classe'), me);
+    if (p === '/api/prof/classes' && m === 'POST') return creerClasse(req, env, me);
     if ((r = p.match(/^\/api\/prof\/classes\/(\d+)$/))) {
       if (m === 'GET') return detailClasse(env, +r[1]);
       if (m === 'PATCH') return modifierClasse(req, env, +r[1]);
@@ -56,8 +73,8 @@ async function route(req, env, url) {
     if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)$/)) && m === 'DELETE') return supprimer(env, 'eleves', +r[1]);
     if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)$/)) && m === 'PATCH') return modifierEleve(req, env, +r[1]);
     if (p === '/api/prof/banque' && m === 'GET') return lireBanque(env);
-    if (p === '/api/prof/banque' && m === 'PUT') return ecrireBanque(req, env);
-    if (p === '/api/prof/signalements' && m === 'GET') return listerSignalements(env);
+    if (p === '/api/prof/banque' && m === 'PUT') { if (!me.admin) throw new HttpError(403, 'Seul le superadmin peut modifier la banque d’exercices.'); return ecrireBanque(req, env); }
+    if (p === '/api/prof/signalements' && m === 'GET') return listerSignalements(env, me);
     if ((r = p.match(/^\/api\/prof\/signalements\/(\d+)$/)) && m === 'PATCH') return traiterSignalement(req, env, +r[1]);
   }
 
@@ -135,13 +152,143 @@ async function sha256(s) { return b64u(await crypto.subtle.digest('SHA-256', enc
 const aleatoire = (n, alphabet) => { const a = crypto.getRandomValues(new Uint8Array(n)); return [...a].map((x) => alphabet[x % alphabet.length]).join(''); };
 
 /* ---------- Enseignant ---------- */
+/* ---------- Comptes enseignants ----------
+   Rôles : superadmin (gère les comptes, voit tout) et enseignant (ses classes uniquement).
+   Mots de passe : empreinte PBKDF2-SHA256 salée, jamais en clair. Premier démarrage : ADMIN_PASSWORD
+   ouvre l'installation du compte superadmin ; ensuite, « admin » + ADMIN_PASSWORD reste un accès de secours. */
+const PBKDF2_ITER = 20000; // modéré pour rester dans le temps de calcul des Workers
+let schemaProfOk = false;
+async function assurerSchemaProf(env) {
+  if (schemaProfOk) return;
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS enseignants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE COLLATE NOCASE, prenom TEXT NOT NULL, nom TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'enseignant', pwd_sel TEXT, pwd_hash TEXT, actif INTEGER NOT NULL DEFAULT 1,
+    jeton_hash TEXT, jeton_exp TEXT, echecs INTEGER NOT NULL DEFAULT 0, bloque_jusqu TEXT,
+    derniere_connexion TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')))`).run();
+  try { await env.DB.prepare('ALTER TABLE classes ADD COLUMN enseignant_id INTEGER').run(); } catch { /* existe déjà */ }
+  schemaProfOk = true;
+}
+async function hacherMdp(mdp, sel) {
+  const k = await crypto.subtle.importKey('raw', enc.encode(mdp), 'PBKDF2', false, ['deriveBits']);
+  return b64u(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(sel), iterations: PBKDF2_ITER }, k, 256));
+}
+const verifierMdpFort = (m) => { if (String(m || '').length < 8) throw new HttpError(400, 'Le mot de passe doit faire au moins 8 caractères.'); };
+const adminExiste = async (env) => !!(await env.DB.prepare("SELECT id FROM enseignants WHERE role = 'admin' AND actif = 1 LIMIT 1").first());
+
+async function exigerProf(req, env) {
+  await assurerSchemaProf(env);
+  const s = await exigerSession(req, env, 'prof');
+  if (s.installation) return { installation: true, admin: true, id: 0, prenom: '', nom: '' };
+  if (!s.id) throw new HttpError(401, 'Connexion nécessaire.');
+  const e = await env.DB.prepare('SELECT id, email, prenom, nom, role, actif FROM enseignants WHERE id = ?').bind(s.id).first();
+  if (!e || !e.actif) throw new HttpError(401, 'Ce compte est désactivé. Contacte l’administrateur.');
+  return { id: e.id, email: e.email, prenom: e.prenom, nom: e.nom, admin: e.role === 'admin' };
+}
+
 async function profLogin(req, env) {
-  const { motDePasse } = await body(req);
-  if (!env.ADMIN_PASSWORD) throw new HttpError(500, "ADMIN_PASSWORD n'est pas configuré sur le serveur.");
+  await assurerSchemaProf(env);
+  const b = await body(req), url = new URL(req.url);
+  const email = String(b.email || '').trim().toLowerCase(), mdp = String(b.motDePasse || '');
   await new Promise((r) => setTimeout(r, 300)); // ralentit les essais en série
-  if (!motDePasse || !egal(await sha256(motDePasse), await sha256(env.ADMIN_PASSWORD))) throw new HttpError(401, 'Mot de passe incorrect.');
-  const url = new URL(req.url);
-  return json({ ok: true }, 200, { 'set-cookie': await ouvrirSession(env, url, { role: 'prof' }) });
+  const session = async (payload) => json({ ok: true }, 200, { 'set-cookie': await ouvrirSession(env, url, { role: 'prof', ...payload }) });
+  // Accès par ADMIN_PASSWORD : installation (aucun superadmin) ou secours (identifiant « admin »)
+  if (env.ADMIN_PASSWORD && (!email || email === 'admin') && egal(await sha256(mdp), await sha256(env.ADMIN_PASSWORD))) {
+    const admin = await env.DB.prepare("SELECT id FROM enseignants WHERE role = 'admin' AND actif = 1 ORDER BY id LIMIT 1").first();
+    return admin ? session({ id: admin.id }) : session({ installation: true });
+  }
+  if (!email) throw new HttpError(400, 'Écris ton adresse e-mail.');
+  const e = await env.DB.prepare('SELECT * FROM enseignants WHERE email = ?').bind(email).first();
+  if (e?.bloque_jusqu && new Date(e.bloque_jusqu + 'Z') > new Date()) throw new HttpError(429, 'Trop d’essais. Réessaie dans quelques minutes.');
+  const ok = e && e.actif && e.pwd_hash && egal(await hacherMdp(mdp, e.pwd_sel), e.pwd_hash);
+  if (!ok) {
+    if (e) await env.DB.prepare("UPDATE enseignants SET echecs = echecs + 1, bloque_jusqu = CASE WHEN echecs + 1 >= 5 THEN datetime('now', '+5 minutes') ELSE bloque_jusqu END WHERE id = ?").bind(e.id).run();
+    if (e && !e.actif) throw new HttpError(401, 'Ce compte est désactivé. Contacte l’administrateur.');
+    if (e && !e.pwd_hash) throw new HttpError(401, 'Ce compte n’est pas encore activé : utilise le lien d’activation reçu.');
+    throw new HttpError(401, 'Adresse e-mail ou mot de passe incorrect.');
+  }
+  await env.DB.prepare("UPDATE enseignants SET echecs = 0, bloque_jusqu = NULL, derniere_connexion = datetime('now') WHERE id = ?").bind(e.id).run();
+  return session({ id: e.id });
+}
+
+// Installation : création du compte superadmin ; les classes existantes lui sont rattachées
+async function installerSuperadmin(req, env, url, me) {
+  if (!me.installation) throw new HttpError(400, 'Le compte superadmin existe déjà.');
+  if (await adminExiste(env)) throw new HttpError(400, 'Le compte superadmin existe déjà.');
+  const b = await body(req);
+  const { email, prenom, nom } = champsEnseignant(b); verifierMdpFort(b.motDePasse);
+  const sel = aleatoire(16, 'abcdefghijklmnopqrstuvwxyz0123456789');
+  const e = await env.DB.prepare("INSERT INTO enseignants (email, prenom, nom, role, pwd_sel, pwd_hash, derniere_connexion) VALUES (?, ?, ?, 'admin', ?, ?, datetime('now')) RETURNING id")
+    .bind(email, prenom, nom, sel, await hacherMdp(b.motDePasse, sel)).first();
+  await env.DB.prepare('UPDATE classes SET enseignant_id = ? WHERE enseignant_id IS NULL').bind(e.id).run();
+  return json({ ok: true }, 200, { 'set-cookie': await ouvrirSession(env, url, { role: 'prof', id: e.id }) });
+}
+function champsEnseignant(b) {
+  const email = String(b.email || '').trim().toLowerCase();
+  const prenom = String(b.prenom || '').trim().replace(/[<>]/g, '').slice(0, 40), nom = String(b.nom || '').trim().replace(/[<>]/g, '').slice(0, 40);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'Adresse e-mail invalide.');
+  if (!prenom || !nom) throw new HttpError(400, 'Indique le prénom et le nom.');
+  return { email, prenom, nom };
+}
+async function lienActivation(env, url, id) {
+  const jeton = aleatoire(32, 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789');
+  await env.DB.prepare("UPDATE enseignants SET jeton_hash = ?, jeton_exp = datetime('now', '+7 days') WHERE id = ?").bind(await sha256(jeton), id).run();
+  return `${url.origin}/prof.html#activation=${jeton}`;
+}
+async function listerEnseignants(env) {
+  const { results } = await env.DB.prepare(`SELECT t.id, t.email, t.prenom, t.nom, t.role, t.actif, t.derniere_connexion, t.created_at, (t.pwd_hash IS NOT NULL) AS active,
+      (SELECT COUNT(*) FROM classes c WHERE c.enseignant_id = t.id) AS nb_classes,
+      (SELECT COUNT(*) FROM eleves e JOIN classes c ON c.id = e.classe_id WHERE c.enseignant_id = t.id) AS nb_eleves
+    FROM enseignants t ORDER BY t.role = 'admin' DESC, t.nom COLLATE NOCASE`).all();
+  return json(results);
+}
+async function creerEnseignant(req, env, url) {
+  const { email, prenom, nom } = champsEnseignant(await body(req));
+  let e;
+  try { e = await env.DB.prepare('INSERT INTO enseignants (email, prenom, nom) VALUES (?, ?, ?) RETURNING id').bind(email, prenom, nom).first(); }
+  catch (err) { if (String(err).includes('UNIQUE')) throw new HttpError(400, 'Un compte existe déjà avec cette adresse.'); throw err; }
+  return json({ ok: true, id: e.id, lien: await lienActivation(env, url, e.id) }, 201);
+}
+async function modifierEnseignant(req, env, id, me) {
+  const b = await body(req);
+  if (id === me.id && b.actif === false) throw new HttpError(400, 'Tu ne peux pas désactiver ton propre compte.');
+  if (typeof b.actif === 'boolean') await env.DB.prepare('UPDATE enseignants SET actif = ? WHERE id = ?').bind(b.actif ? 1 : 0, id).run();
+  if (b.prenom || b.nom || b.email) { const c = champsEnseignant(b); await env.DB.prepare('UPDATE enseignants SET email = ?, prenom = ?, nom = ? WHERE id = ?').bind(c.email, c.prenom, c.nom, id).run(); }
+  return json({ ok: true });
+}
+async function nouveauLien(env, url, id) {
+  if (!(await env.DB.prepare('SELECT id FROM enseignants WHERE id = ?').bind(id).first())) throw new HttpError(404, 'Compte introuvable.');
+  return json({ ok: true, lien: await lienActivation(env, url, id) });
+}
+async function trouverJeton(env, jeton) {
+  await assurerSchemaProf(env);
+  if (!jeton || jeton.length < 20) throw new HttpError(400, 'Lien invalide.');
+  const e = await env.DB.prepare("SELECT * FROM enseignants WHERE jeton_hash = ? AND jeton_exp > datetime('now') AND actif = 1").bind(await sha256(jeton)).first();
+  if (!e) throw new HttpError(400, 'Ce lien n’est plus valable. Demande un nouveau lien à l’administrateur.');
+  return e;
+}
+async function verifierActivation(env, jeton) { const e = await trouverJeton(env, jeton); return json({ ok: true, prenom: e.prenom, email: e.email }); }
+async function activerCompte(req, env, url) {
+  const b = await body(req); const e = await trouverJeton(env, b.jeton); verifierMdpFort(b.motDePasse);
+  const sel = aleatoire(16, 'abcdefghijklmnopqrstuvwxyz0123456789');
+  await env.DB.prepare("UPDATE enseignants SET pwd_sel = ?, pwd_hash = ?, jeton_hash = NULL, jeton_exp = NULL, echecs = 0, bloque_jusqu = NULL, derniere_connexion = datetime('now') WHERE id = ?")
+    .bind(sel, await hacherMdp(b.motDePasse, sel), e.id).run();
+  return json({ ok: true }, 200, { 'set-cookie': await ouvrirSession(env, url, { role: 'prof', id: e.id }) });
+}
+// Cloisonnement
+async function verifierClasse(env, me, classeId) {
+  if (me.admin) return;
+  const c = await env.DB.prepare('SELECT enseignant_id FROM classes WHERE id = ?').bind(classeId).first();
+  if (!c || c.enseignant_id !== me.id) throw new HttpError(404, 'Classe introuvable.');
+}
+async function verifierEleve(env, me, eleveId) {
+  if (me.admin) return;
+  const c = await env.DB.prepare('SELECT c.enseignant_id FROM eleves e JOIN classes c ON c.id = e.classe_id WHERE e.id = ?').bind(eleveId).first();
+  if (!c || c.enseignant_id !== me.id) throw new HttpError(404, 'Élève introuvable.');
+}
+async function verifierSignalement(env, me, sigId) {
+  if (me.admin) return;
+  const c = await env.DB.prepare('SELECT c.enseignant_id FROM signalements s JOIN eleves e ON e.id = s.eleve_id JOIN classes c ON c.id = e.classe_id WHERE s.id = ?').bind(sigId).first();
+  if (!c || c.enseignant_id !== me.id) throw new HttpError(404, 'Signalement introuvable.');
 }
 
 function lireReglages(classe) {
@@ -192,33 +339,35 @@ async function signalerPresence(req, env, id) {
   await env.DB.prepare("UPDATE eleves SET derniere_activite = datetime('now'), activite = ? WHERE id = ?").bind(activite, id).run();
   return json({ ok: true });
 }
-async function presenceClasses(env, classe) {
+async function presenceClasses(env, classe, me = { admin: true }) {
   await assurerColonneActivite(env);
   if (classe) {
     const { results } = await env.DB.prepare(`SELECT id, derniere_activite, activite, (derniere_activite >= ${EN_LIGNE}) AS en_ligne FROM eleves WHERE classe_id = ?`).bind(+classe).all();
     return json(results);
   }
-  const { results } = await env.DB.prepare(`SELECT classe_id, COUNT(*) AS n FROM eleves WHERE derniere_activite >= ${EN_LIGNE} GROUP BY classe_id`).all();
+  const { results } = await env.DB.prepare(`SELECT e.classe_id, COUNT(*) AS n FROM eleves e JOIN classes c ON c.id = e.classe_id WHERE e.derniere_activite >= ${EN_LIGNE} ${me.admin ? '' : 'AND c.enseignant_id = ?'} GROUP BY e.classe_id`).bind(...(me.admin ? [] : [me.id])).all();
   return json(Object.fromEntries(results.map((r) => [r.classe_id, r.n])));
 }
 
-async function listerClasses(env) {
+async function listerClasses(env, me) {
   const { results } = await env.DB.prepare(`
     SELECT c.*, (SELECT COUNT(*) FROM eleves e WHERE e.classe_id = c.id) AS nb_eleves,
-      (SELECT COUNT(*) FROM series s JOIN eleves e ON e.id = s.eleve_id WHERE e.classe_id = c.id) AS nb_series
-    FROM classes c ORDER BY c.created_at`).all();
+      (SELECT COUNT(*) FROM series s JOIN eleves e ON e.id = s.eleve_id WHERE e.classe_id = c.id) AS nb_series,
+      t.prenom || ' ' || t.nom AS enseignant
+    FROM classes c LEFT JOIN enseignants t ON t.id = c.enseignant_id ${me.admin ? '' : 'WHERE c.enseignant_id = ?'}
+    ORDER BY (c.enseignant_id = ?) DESC, t.nom COLLATE NOCASE, c.created_at`).bind(...(me.admin ? [me.id] : [me.id, me.id])).all();
   return json(results.map((c) => ({ ...c, reglages: lireReglages(c) })));
 }
 
-async function creerClasse(req, env) {
+async function creerClasse(req, env, me) {
   const { nom, niveau } = await body(req);
   if (!nom || !String(nom).trim()) throw new HttpError(400, 'Donne un nom à la classe.');
   if (!niveau) throw new HttpError(400, 'Choisis un niveau.');
   for (let essai = 0; essai < 5; essai++) {
     const code = aleatoire(6, 'ABCDEFGHJKMNPQRSTUVWXYZ23456789');
     try {
-      const row = await env.DB.prepare('INSERT INTO classes (nom, niveau, code, reglages) VALUES (?, ?, ?, ?) RETURNING *')
-        .bind(String(nom).trim().slice(0, 60), niveau, code, JSON.stringify(REGLAGES_DEFAUT(niveau))).first();
+      const row = await env.DB.prepare('INSERT INTO classes (nom, niveau, code, reglages, enseignant_id) VALUES (?, ?, ?, ?, ?) RETURNING *')
+        .bind(String(nom).trim().slice(0, 60), niveau, code, JSON.stringify(REGLAGES_DEFAUT(niveau)), me.id).first();
       return json({ ...row, reglages: lireReglages(row) }, 201);
     } catch (e) { if (!String(e).includes('UNIQUE')) throw e; }
   }
@@ -297,12 +446,13 @@ async function ecrireBanque(req, env) {
   return json({ ok: true, notions, nb: exercices.length });
 }
 
-async function listerSignalements(env) {
+async function listerSignalements(env, me) {
   await assurerColonneActivite(env);
   const { results } = await env.DB.prepare(`
     SELECT s.*, e.pseudo, e.nom AS nom_eleve, c.nom AS classe FROM signalements s
     LEFT JOIN eleves e ON e.id = s.eleve_id LEFT JOIN classes c ON c.id = e.classe_id
-    ORDER BY s.traite, s.created_at DESC LIMIT 200`).all();
+    ${me.admin ? '' : 'WHERE c.enseignant_id = ?'}
+    ORDER BY s.traite, s.created_at DESC LIMIT 200`).bind(...(me.admin ? [] : [me.id])).all();
   return json(results);
 }
 async function traiterSignalement(req, env, id) {

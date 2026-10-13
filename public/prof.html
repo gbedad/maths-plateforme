@@ -12,16 +12,38 @@
 <body>
 <header class="top">
   <div class="brand"><span class="logo">ℕ</span>Maths par l'exemple <small>Espace enseignant</small></div>
-  <div class="who" id="who" hidden><span><b>Administrateur</b></span><button class="linkbtn" id="logout">Se déconnecter</button></div>
+  <div class="who" id="who" hidden><span id="whoNom"><b>Enseignant</b></span><button class="linkbtn" id="logout">Se déconnecter</button></div>
 </header>
 
 <div class="login-wrap" id="login" hidden>
   <form class="card login" id="loginForm">
     <h1>Espace enseignant</h1>
-    <p>Entre le mot de passe administrateur défini lors de l'installation.</p>
+    <p>Connecte-toi avec ton adresse e-mail et ton mot de passe.</p>
+    <div class="field"><label for="lgEmail">Adresse e-mail</label><input id="lgEmail" type="email" autocomplete="username" placeholder="prenom.nom@exemple.fr"></div>
     <div class="field"><label for="lgPass">Mot de passe</label><div class="pw-wrap"><input id="lgPass" type="password" required autocomplete="current-password"><button type="button" class="pw-eye" aria-label="Afficher le mot de passe" aria-pressed="false" title="Afficher / masquer"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="o" d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle class="o" cx="12" cy="12" r="3"/><path class="barre" d="M4 4l16 16"/></svg></button></div></div>
     <p class="err" id="lgErr" role="alert"></p>
     <button class="btn" type="submit">Se connecter</button>
+  </form>
+</div>
+<div class="login-wrap" id="activation" hidden>
+  <form class="card login" id="actForm">
+    <h1 id="actTitre">Activer ton compte</h1>
+    <p id="actTexte">Choisis ton mot de passe (8 caractères au moins).</p>
+    <div class="field"><label for="actPass">Mot de passe</label><input id="actPass" type="password" minlength="8" required autocomplete="new-password"></div>
+    <div class="field"><label for="actPass2">Confirme le mot de passe</label><input id="actPass2" type="password" minlength="8" required autocomplete="new-password"></div>
+    <p class="err" id="actErr" role="alert"></p>
+    <button class="btn" type="submit">Enregistrer et entrer</button>
+  </form>
+</div>
+<div class="login-wrap" id="installation" hidden>
+  <form class="card login" id="instForm">
+    <h1>Créer le compte superadmin</h1>
+    <p>Première connexion : crée ton compte. Il te servira à te connecter, à gérer les comptes enseignants et la banque d'exercices. Les classes existantes te seront rattachées.</p>
+    <div class="row2"><div class="field"><label for="inPrenom">Prénom</label><input id="inPrenom" required maxlength="40" autocomplete="given-name"></div><div class="field"><label for="inNom">Nom</label><input id="inNom" required maxlength="40" autocomplete="family-name"></div></div>
+    <div class="field"><label for="inEmail">Adresse e-mail</label><input id="inEmail" type="email" required autocomplete="username"></div>
+    <div class="field"><label for="inPass">Mot de passe (8 caractères au moins)</label><input id="inPass" type="password" minlength="8" required autocomplete="new-password"></div>
+    <p class="err" id="inErr" role="alert"></p>
+    <button class="btn" type="submit">Créer mon compte</button>
   </form>
 </div>
 <div class="loading" id="loading">Chargement…</div>

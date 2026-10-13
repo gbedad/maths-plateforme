@@ -17,26 +17,54 @@ const pill = (x) => (x == null ? '<span class="pill">—</span>' : `<span class=
 // Session expirée : on réaffiche le formulaire de connexion (la vue demandée est rouverte ensuite)
 function reconnexion() {
   $('#app').hidden = true; $('#who').hidden = true; $('#login').hidden = false;
-  $('#lgErr').textContent = 'Ta session a expiré : reconnecte-toi.'; $('#lgPass').focus();
+  $('#lgErr').textContent = 'Ta session a expiré : reconnecte-toi.'; $('#lgEmail').focus();
 }
+let MOI = null;
 async function demarrer() {
-  try { await api('/api/prof/moi'); } catch (e) { $('#loading').hidden = true; if (e.status === 401) { $('#login').hidden = false; $('#lgPass').focus(); } else $('#loading').textContent = e.message; return; }
-  $('#loading').hidden = true; $('#login').hidden = true; $('#app').hidden = false; $('#who').hidden = false;
+  // Lien d'activation (ou de nouveau mot de passe) envoyé par le superadmin
+  const act = location.hash.match(/^#activation=([\w-]+)/);
+  if (act) return ecranActivation(act[1]);
+  try { MOI = await api('/api/prof/moi'); } catch (e) { $('#loading').hidden = true; if (e.status === 401) { $('#login').hidden = false; $('#lgEmail').focus(); } else $('#loading').textContent = e.message; return; }
+  $('#loading').hidden = true; $('#login').hidden = true;
+  if (MOI.installation) { $('#installation').hidden = false; $('#inPrenom').focus(); return; }
+  $('#app').hidden = false; $('#who').hidden = false;
+  $('#whoNom').innerHTML = `<b>${esc(MOI.prenom)} ${esc(MOI.nom)}</b>${MOI.admin ? ' <span class="pill">superadmin</span>' : ''}`;
   await chargerClasses();
   aller(location.hash.slice(1) || 'classes');
   majPresence();
 }
 $('#loginForm').addEventListener('submit', async (e) => {
   e.preventDefault(); $('#lgErr').textContent = '';
-  try { await api('/api/prof/login', { method: 'POST', body: { motDePasse: $('#lgPass').value } }); await demarrer(); } catch (err) { $('#lgErr').textContent = err.message; }
+  try { await api('/api/prof/login', { method: 'POST', body: { email: $('#lgEmail').value, motDePasse: $('#lgPass').value } }); await demarrer(); } catch (err) { $('#lgErr').textContent = err.message; }
 });
+$('#instForm').addEventListener('submit', async (e) => {
+  e.preventDefault(); $('#inErr').textContent = '';
+  try { await api('/api/prof/installation', { method: 'POST', body: { prenom: $('#inPrenom').value, nom: $('#inNom').value, email: $('#inEmail').value, motDePasse: $('#inPass').value } }); $('#installation').hidden = true; await demarrer(); } catch (err) { $('#inErr').textContent = err.message; }
+});
+async function ecranActivation(jeton) {
+  $('#loading').hidden = true; $('#activation').hidden = false;
+  try { const r = await api('/api/prof/activation?jeton=' + encodeURIComponent(jeton)); $('#actTitre').textContent = `Bonjour ${r.prenom}`; $('#actTexte').textContent = `Choisis le mot de passe de ton compte ${r.email} (8 caractères au moins).`; $('#actPass').focus(); }
+  catch (err) { $('#actErr').textContent = err.message; $('#actForm .btn').disabled = true; }
+  $('#actForm').onsubmit = async (e) => {
+    e.preventDefault(); $('#actErr').textContent = '';
+    if ($('#actPass').value !== $('#actPass2').value) { $('#actErr').textContent = 'Les deux mots de passe ne sont pas identiques.'; return; }
+    try { await api('/api/prof/activation', { method: 'POST', body: { jeton, motDePasse: $('#actPass').value } }); history.replaceState(null, '', location.pathname); $('#activation').hidden = true; await demarrer(); }
+    catch (err) { $('#actErr').textContent = err.message; }
+  };
+}
 $('#logout').addEventListener('click', async () => { await api('/api/logout', { method: 'POST', body: { role: 'prof' } }).catch(() => {}); location.reload(); });
 
 async function chargerClasses() { CLASSES = await api('/api/prof/classes'); renderNav(); }
 function renderNav() {
-  $('#nav').innerHTML = `<button data-vue="classes">Mes classes</button>
-    ${CLASSES.length ? '<div class="sep">Classes</div>' : ''}${CLASSES.map((c) => `<button data-vue="classe-${c.id}"><span>${esc(c.nom)}</span><span class="enligne" data-cl="${c.id}" title="Élèves en ligne"></span><span class="pill">${esc(c.niveau)}</span></button>`).join('')}
-    <div class="sep">Contenu</div><button data-vue="banque">Banque d'exercices</button><button data-vue="signalements">Signalements</button>`;
+  $('#nav').innerHTML = `<button data-vue="classes">Vue d'ensemble</button>
+    ${(() => {
+      const btn = (c, prof) => `<button data-vue="classe-${c.id}"><span>${esc(c.nom)}${prof ? `<small class="nav-prof">${esc(c.enseignant || 'sans enseignant')}</small>` : ''}</span><span class="enligne" data-cl="${c.id}" title="Élèves en ligne"></span><span class="pill">${esc(c.niveau)}</span></button>`;
+      const miennes = CLASSES.filter((c) => c.enseignant_id === MOI?.id), autres = CLASSES.filter((c) => c.enseignant_id !== MOI?.id);
+      return (miennes.length ? '<div class="sep">Mes classes</div>' + miennes.map((c) => btn(c)).join('') : '')
+        + (autres.length ? '<div class="sep">Classes des autres enseignants</div>' + autres.map((c) => btn(c, true)).join('') : '');
+    })()}
+    <div class="sep">Contenu</div><button data-vue="banque">Banque d'exercices</button><button data-vue="signalements">Signalements</button>
+    ${MOI?.admin ? '<div class="sep">Administration</div><button data-vue="enseignants">Enseignants</button>' : ''}`;
   $$('#nav button').forEach((b) => b.setAttribute('aria-current', b.dataset.vue === VUE));
   afficherPresence();
 }
@@ -47,6 +75,7 @@ function aller(vue) {
   if (m) return vueClasse(+m[1]);
   if (vue === 'banque') return vueBanque();
   if (vue === 'signalements') return vueSignalements();
+  if (vue === 'enseignants' && MOI?.admin) return vueEnseignants();
   vueClasses();
 }
 // Confirmation en deux clics (les boîtes de dialogue sont évitées)
@@ -100,7 +129,7 @@ function vueClasses() {
     </form>
     <div class="kpis">${CLASSES.map((c) => `<button class="kpi" data-vue="classe-${c.id}" style="text-align:left;cursor:pointer;display:grid;gap:4px">
       <span class="k">${esc(c.niveau)}</span><span class="v" style="font-size:1.2rem">${esc(c.nom)}</span><span class="code" style="font-size:1.1rem">${esc(c.code)}</span>
-      <span style="color:var(--ink-soft);font-size:.85rem">${c.nb_eleves} élève${c.nb_eleves > 1 ? 's' : ''} · ${c.nb_series} série${c.nb_series > 1 ? 's' : ''}</span><span class="enligne long" data-cl="${c.id}"></span></button>`).join('') || '<div class="card empty">Aucune classe pour l\'instant.</div>'}</div>`;
+      <span style="color:var(--ink-soft);font-size:.85rem">${c.nb_eleves} élève${c.nb_eleves > 1 ? 's' : ''} · ${c.nb_series} série${c.nb_series > 1 ? 's' : ''}${c.enseignant_id !== MOI?.id ? ` · ${esc(c.enseignant || 'sans enseignant')}` : ''}</span><span class="enligne long" data-cl="${c.id}"></span></button>`).join('') || '<div class="card empty">Aucune classe pour l\'instant.</div>'}</div>`;
   afficherPresence();
   $('#main .kpis').addEventListener('click', (e) => { const b = e.target.closest('[data-vue]'); if (b) aller(b.dataset.vue); });
   $('#newClasse').addEventListener('submit', async (e) => {
@@ -132,7 +161,7 @@ async function vueClasse(id) {
         <td style="white-space:nowrap">${ef.faites}/7 · <span class="stars" style="font-size:.9rem">★</span>${ef.etoiles}</td><td><button class="btn sm ghost" data-fiche="${e.id}" data-n="${n}">Fiche</button></td></tr>`; }).join('')}</table></div></div>`;
   }).join('');
   $('#main').innerHTML = `
-    <div class="head"><div class="eyebrow">Classe · ${esc(c.niveau)}</div><h1>${esc(c.nom)}</h1><p>Code à donner aux élèves : <span class="code">${esc(c.code)}</span></p></div>
+    <div class="head"><div class="eyebrow">Classe · ${esc(c.niveau)}${c.enseignant_id !== MOI?.id ? ` · ${esc(CLASSES.find((x) => x.id === c.id)?.enseignant || 'sans enseignant')}` : ''}</div><h1>${esc(c.nom)}</h1><p>Code à donner aux élèves : <span class="code">${esc(c.code)}</span></p></div>
     <div class="kpis"><div class="kpi"><div class="k">Élèves</div><div class="v">${d.eleves.length}</div><span class="enligne long" data-cl="${c.id}"></span></div>
       <div class="kpi"><div class="k">Compétences ancrées</div><div class="v">${o.atteint}</div></div>
       <div class="kpi"><div class="k">Objectif de classe</div><div class="bar" style="margin:10px 0 6px"><i style="width:${Math.min(100, (o.atteint / o.cible) * 100)}%"></i></div>
@@ -214,12 +243,12 @@ async function vueBanque() {
   $('#main').innerHTML = '<div class="loading">Chargement…</div>';
   let banque = []; try { banque = await api('/api/prof/banque'); } catch (e) { toast(e.message); }
   $('#main').innerHTML = `
-    <div class="head"><div class="eyebrow">Contenu</div><h1>Banque d'exercices</h1><p>Les exercices viennent de ton fichier Excel. Une ligne = une variante de question. Importer un fichier remplace les exercices des notions qu'il contient.</p></div>
-    <div class="card"><h3>Importer un fichier Excel</h3>
+    <div class="head"><div class="eyebrow">Contenu</div><h1>Banque d'exercices</h1><p>${MOI?.admin ? "Les exercices viennent de ton fichier Excel. Une ligne = une variante de question. Importer un fichier remplace les exercices des notions qu'il contient. La banque est commune à tous les enseignants." : "La banque est commune à tous les enseignants. Elle est gérée par l'administrateur de la plateforme."}</p></div>
+    ${MOI?.admin ? '' : '<!--'}<div class="card"><h3>Importer un fichier Excel</h3>
       <div class="drop"><input type="file" id="xl" accept=".xlsx,.xlsb,.xls" aria-label="Fichier Excel"><p style="margin:8px 0 0;font-size:.85rem">Formats acceptés : .xlsx, .xlsb, .xls. Feuilles lues : « Banque » (ou la première), « Parcours » et « Tables » (questions des tables de multiplication).</p></div>
-      <div id="apercu"></div></div>
-    ${banque.length ? banque.map(tableExercice).join('') : '<div class="card empty">La banque est vide. Importe ton fichier Excel ci-dessus.</div>'}`;
-  $('#xl').addEventListener('change', lireFichier);
+      <div id="apercu"></div></div>${MOI?.admin ? '' : '-->'}
+    ${banque.length ? banque.map(tableExercice).join('') : '<div class="card empty">La banque est vide pour l’instant.</div>'}`;
+  $('#xl')?.addEventListener('change', lireFichier);
 }
 function tableExercice(ex) {
   const n = CATALOGUE[ex.notion];
@@ -270,6 +299,41 @@ async function lireFichier(e) {
     });
     $('#cancelImport').addEventListener('click', () => { IMPORT = null; vueBanque(); });
   } catch (err) { out.innerHTML = `<p class="err" style="margin-top:12px">${esc(err.message)}</p>`; }
+}
+
+/* ---------- Enseignants (superadmin) ---------- */
+async function vueEnseignants() {
+  $('#main').innerHTML = '<div class="loading">Chargement…</div>';
+  let liste = []; try { liste = await api('/api/prof/enseignants'); } catch (e) { $('#main').innerHTML = `<div class="card">${esc(e.message)}</div>`; return; }
+  const etat = (t) => (!t.actif ? '<span class="pill ko">désactivé</span>' : !t.active ? '<span class="pill mid">lien d’activation envoyé</span>' : '<span class="pill ok">actif</span>');
+  $('#main').innerHTML = `
+    <div class="head"><div class="eyebrow">Administration</div><h1>Enseignants</h1><p>Inscris un enseignant : la plateforme crée un lien d'activation (valable 7 jours) que tu lui transmets. Avec ce lien, il choisit son mot de passe, puis il se connecte avec son e-mail et crée ses classes. Il ne voit que ses classes ; toi, tu vois tout.</p></div>
+    <form class="card inline-form" id="newProf">
+      <div class="field"><label for="npPrenom">Prénom</label><input id="npPrenom" required maxlength="40"></div>
+      <div class="field"><label for="npNom">Nom</label><input id="npNom" required maxlength="40"></div>
+      <div class="field" style="flex:2 1 220px"><label for="npEmail">Adresse e-mail</label><input id="npEmail" type="email" required></div>
+      <button class="btn" type="submit">Inscrire</button>
+    </form>
+    <div id="lienBox"></div>
+    <div class="card"><div class="tbl-wrap"><table><tr><th>Enseignant</th><th>État</th><th>Classes</th><th>Élèves</th><th>Dernière connexion</th><th></th></tr>
+      ${liste.map((t) => `<tr><td><b>${esc(t.prenom)} ${esc(t.nom)}</b>${t.role === 'admin' ? ' <span class="pill">superadmin</span>' : ''}<br><small>${esc(t.email)}</small></td><td>${etat(t)}</td><td>${t.nb_classes}</td><td>${t.nb_eleves}</td><td style="font-size:.85rem">${t.derniere_connexion ? dateFr(t.derniere_connexion) : '—'}</td>
+        <td><div class="actions">${t.id === MOI.id ? '' : `<button class="btn sm ghost" data-lien="${t.id}">${t.active ? 'Lien nouveau mot de passe' : 'Nouveau lien d’activation'}</button><button class="btn sm ${t.actif ? 'danger' : 'ghost'}" data-actif="${t.id}" data-v="${t.actif ? 0 : 1}">${t.actif ? 'Désactiver' : 'Réactiver'}</button>`}</div></td></tr>`).join('')}
+    </table></div></div>`;
+  const montrerLien = (t, lien) => {
+    $('#lienBox').innerHTML = `<div class="card lien-card"><h3>Lien pour ${esc(t)}</h3><p class="mini">Transmets-le-lui (e-mail, messagerie). Il est valable 7 jours et ne sert qu'une fois.</p>
+      <div class="row" style="gap:8px"><input class="lien-in" readonly value="${esc(lien)}" aria-label="Lien"><button class="btn sm" id="copieLien">Copier</button></div></div>`;
+    $('#copieLien').onclick = async () => { try { await navigator.clipboard.writeText(lien); toast('Lien copié.'); } catch { $('.lien-in').select(); } };
+  };
+  $('#newProf').onsubmit = async (e) => {
+    e.preventDefault();
+    try { const r = await api('/api/prof/enseignants', { method: 'POST', body: { prenom: $('#npPrenom').value, nom: $('#npNom').value, email: $('#npEmail').value } }); const nom = `${$('#npPrenom').value} ${$('#npNom').value}`; await vueEnseignants(); montrerLien(nom, r.lien); toast('Enseignant inscrit.'); }
+    catch (err) { toast(err.message); }
+  };
+  $('#main').onclick = async (e) => {
+    const l = e.target.closest('[data-lien]'), a = e.target.closest('[data-actif]');
+    if (l) { const t = liste.find((x) => x.id === +l.dataset.lien); try { const r = await api(`/api/prof/enseignants/${t.id}/lien`, { method: 'POST' }); montrerLien(`${t.prenom} ${t.nom}`, r.lien); } catch (err) { toast(err.message); } }
+    if (a && confirmer(a, 'Confirmer ?')) { try { await api('/api/prof/enseignants/' + a.dataset.actif, { method: 'PATCH', body: { actif: a.dataset.v === '1' } }); vueEnseignants(); } catch (err) { toast(err.message); } }
+  };
 }
 
 /* ---------- Signalements ---------- */
