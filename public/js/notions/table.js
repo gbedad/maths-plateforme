@@ -2,6 +2,8 @@
 // creerTable(t) renvoie une notion complète : Explorer en 3 séquences, jeux, entraînement chronométré…
 import { $, $$, rnd, shuffle, esc } from '../outils.js';
 
+// Étoile d'Explorer : gagnée à la séquence 2 (la séquence 1, découverte des méthodes, ne rapporte rien)
+const SEUIL_ETOILE_S2 = 10;
 export const ORDRE_EXPLORER = [0, 1, 10, 2, 5, 3, 4, 11, 8, 6, 7, 9, 12]; // ordre imposé des 13 questions (séquence 1)
 const FAITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const COUL_UNITES = ['#e9e1d6', '#d6efd9', '#f6d6de', '#f8ecc9', '#dcdcf6', '#d6ecef', '#efe0f6', '#f3e2d2', '#dfeedd', '#f2d9cf'];
@@ -109,7 +111,7 @@ function questionsSeq1(t, config) {
 function tableHTML(t, sens, etat = {}, actif = null) {
   return `<div class="tbl-t">${FAITS.map((k) => {
     const e = etat[k] || {};
-    return `<div class="tl-row ${k === actif ? 'actif' : ''} ${e.ok === true ? 'juste' : e.ok === false ? 'faux' : ''}"><span class="tl-calc">${ecrire(sens, t, k)} =</span><span class="tl-box">${e.val ?? ''}</span></div>`;
+    return `<div class="tl-row ${k === actif ? 'actif' : ''} ${e.ok === true ? 'juste' : e.ok === false ? 'faux' : ''}"><span class="tl-calc">${ecrire(sens, t, k)} =</span><span class="tl-box">${e.val ?? ''}</span>${e.ok === false ? '<span class="tl-x" title="Erreur sur ce calcul" aria-label="erreur">✗</span>' : ''}</div>`;
   }).join('')}</div>`;
 }
 // Points rangés en lignes régulières, chaque rangée posée sur une bande légère (« tant de rangées de tant de points »)
@@ -164,7 +166,7 @@ const mediane = (xs) => { const s = [...xs].sort((a, b) => a - b); return s.leng
 function explorerTable(t) {
   return function explorer(root, ctx) {
     const d = { ...(ctx.prog.explorer?.donnees || {}) };
-    const sauver = (donnees, fait) => ctx.sauver('explorer', { donnees, ...(fait ? { fait: true } : {}) }).then(() => Object.assign(d, donnees));
+    const sauver = (donnees, fait, etoiles) => ctx.sauver('explorer', { donnees, ...(fait ? { fait: true } : {}), ...(etoiles ? { etoiles } : {}) }).then(() => Object.assign(d, donnees));
     const intro = (titre, txt) => `<div class="seq-head"><div class="eyebrow">${titre}</div><p class="lead" style="margin:4px 0 0">${txt}</p></div>`;
 
     const ex = t === 3 ? 4 : 3; // exemple qui montre bien l'ordre (éviter 3 × 3)
@@ -201,7 +203,7 @@ function explorerTable(t) {
             ? `<div class="calc-bilan"><span class="cb good">✓ ${ecrire(sens, t, k)} = ${v}</span></div>`
             : `<div class="calc-bilan"><span class="cb bad">✗ Ta réponse : ${v}</span><span class="cb good-ghost">✓ ${ecrire(sens, t, k)} = ${t * k}</span></div>`;
           $('#s1fb').innerHTML = `<div class="feedback"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div>${bilanCalc}</div>
-            <div class="why-title">Pourquoi ?</div><p class="mini" style="margin:-6px 0 8px">Choisis une seule réponse : celle qui explique le mieux comment ${ok ? 'tu as trouvé' : 'on trouve'} le résultat.</p>
+            <div class="why-title">Pourquoi ?</div><p class="mini" style="margin:-6px 0 8px">Choisis une seule réponse : celle qui explique le mieux <i>comment</i> ${ok ? 'tu as trouvé' : 'on trouve'} le résultat.</p>
             <div class="choices">${opts.map((o, j) => `<button class="choice" data-o="${j}" aria-pressed="false"><span class="l">${'abcd'[j]})</span><span>${esc(o.texte)}</span></button>`).join('')}</div>
             <div class="next" id="s1valBox"><span class="mini" id="s1valMsg">Choisis une explication.</span><button class="btn" id="s1val" disabled>Valider mon explication</button></div><div id="s1why"></div>`;
           let pick = null;
@@ -250,7 +252,17 @@ function explorerTable(t) {
           const v = nombre(inp.value); if (Number.isNaN(v)) return;
           const ok = v === t * k; etat[k] = { val: t * k, ok };
           ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: null, choix: String(v), juste: '', corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
-          const suite = async () => { if (k < 12) { k++; question(); } else { await sauver({ phase: Math.max(d.phase || 1, 3) }); continuer(); } };
+          const suite = async () => {
+            if (k < 12) { k++; question(); return; }
+            const justes = Object.values(etat).filter((x) => x.ok).length, etoile = justes >= SEUIL_ETOILE_S2;
+            await sauver({ phase: Math.max(d.phase || 1, 3), justesS2: justes }, false, etoile ? 1 : 0);
+            if (etoile) {
+              ctx.toast(`★ Étoile gagnée : ${justes} calculs justes sur 13 !`);
+              const h = document.querySelector('.etape-head h1 .stars'); if (h) h.outerHTML = ctx.etoiles(1, true, 1);
+              document.querySelector('.etape-head .regles li')?.classList.add('ok');
+            } else ctx.toast(`${justes} calculs justes sur 13. Il en faut ${SEUIL_ETOILE_S2} pour l'étoile : tu pourras refaire la séquence 2.`);
+            continuer();
+          };
           if (ok) { suite(); return; }
           inp.disabled = true; $('.calc-form button', root).disabled = true;
           $('#s2fb').innerHTML = `<div class="feedback"><div class="hand ko">Incorrect</div><p>${ecrire(sens, t, k)} = <b>${t * k}</b></p></div><div class="next"><button class="btn" id="s2next">Continuer →</button></div>`;
@@ -560,7 +572,8 @@ export function creerTable(t) {
       entrainer: '12 calculs à compléter, chronométrés.',
       plusloin: `Au-delà de 12 × ${t} et deux défis.`,
     },
-    reglesEtoiles: { entrainer: ['Faire une série de 12 calculs', 'Au moins 9 calculs justes', 'Et répondre en moins de 5 secondes en moyenne'] },
+    etoilesMax: { explorer: 1 },
+    reglesEtoiles: { explorer: [`Séquence 2 : au moins ${SEUIL_ETOILE_S2} calculs justes sur 13`], entrainer: ['Faire une série de 12 calculs', 'Au moins 9 calculs justes', 'Et répondre en moins de 5 secondes en moyenne'] },
     affiche: (s) => esc(s),
     explorerCustom: explorerTable(t),
     entrainerCustom: entrainerTable(t),

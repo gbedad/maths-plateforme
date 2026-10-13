@@ -36,7 +36,10 @@ export function etatEtapes(prog, visibles = {}, reveles = {}) {
   return { etapes: res, termine: !courant && res.filter((e) => e.visible).every((e) => e.fait) };
 }
 
-export const etoilesHTML = (n, label = true) => `<span class="stars" ${label ? `aria-label="${n} étoile${n > 1 ? 's' : ''} sur 3"` : 'aria-hidden="true"'}>${'★'.repeat(n)}<span class="off">${'★'.repeat(3 - n)}</span></span>`;
+export const etoilesHTML = (n, label = true, max = 3) => { n = Math.min(n, max); return `<span class="stars" ${label ? `aria-label="${n} étoile${n > 1 ? 's' : ''} sur ${max}"` : 'aria-hidden="true"'}>${'★'.repeat(n)}<span class="off">${'★'.repeat(max - n)}</span></span>`; };
+// Étoiles possibles d'une étape pour une notion (3 pour S'entraîner, Retenir, Aller plus loin ; certaines notions en ajoutent, ex. 1 pour Explorer des tables)
+export const etoilesMax = (notion, id) => (ETAPES.find((e) => e.id === id)?.etoiles ? 3 : notion?.etoilesMax?.[id] || 0);
+export const etoilesTotal = (notion) => ETAPES.reduce((a, e) => a + etoilesMax(notion, e.id), 0);
 
 export const dansJours = (iso) => {
   if (!iso) return '';
