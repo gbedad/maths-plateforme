@@ -217,15 +217,15 @@ function explorerTable(t) {
             $$('#s1fb .choice').forEach((c, j) => {
               c.disabled = true; c.classList.remove('sel'); c.removeAttribute('aria-pressed');
               const choisi = j === pick, bon = opts[j].ok;
-              c.classList.add(choisi ? (o.ok ? 'good' : 'bad') : bon ? 'good-ghost' : 'dim');
-              const tag = choisi ? `${o.ok ? '✓' : '✗'} Ton explication` : bon ? '✓ Juste' : '';
-              if (tag) c.lastElementChild.insertAdjacentHTML('beforeend', `<span class="rep-tag">${tag}</span>`);
+              // Bonnes réponses en vert, mauvaises en rouge ; seule la réponse de l'élève est marquée
+              c.classList.add(bon ? 'good' : 'bad');
+              if (choisi) { c.classList.add('choisi'); c.lastElementChild.insertAdjacentHTML('beforeend', '<span class="rep-tag">Ton explication</span>'); }
             });
             if (o.ok) strats.push(o.cat);
             ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: o.ok, choix: o.texte, juste: o.ok ? o.texte : (opts.find((x) => x.ok) || {}).texte, corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
-            const R = retourExplication({ opts, pick, ok, t, k, sens, strats });
-            const corps = `<b>${esc(R.titre)}</b>${R.pourquoi ? `<p>${esc(R.pourquoi)}</p>` : ''}${R.autre ? `<p class="autre-facon"><span>${esc(R.autre.label)}</span> ${esc(R.autre.texte)}</p>` : ''}${R.pref ? `<p class="pref">${esc(R.pref)}</p>` : ''}`;
-            $('#s1why').innerHTML = `<div class="why-verdict ${o.ok ? 'ok' : 'ko'}">${corps}</div><div class="next"><button class="btn" id="s1next">${n === ORDRE.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
+            // La correction : uniquement l'explication liée au choix de l'élève (« Explication si choisi »), en noir
+            const texte = o.ok ? (o.expl || commentaire(o.cat, t, k, sens)) : o.expl;
+            $('#s1why').innerHTML = `${texte ? `<div class="why-verdict correction"><p>${esc(texte)}</p></div>` : ''}<div class="next"><button class="btn" id="s1next">${n === ORDRE.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
             $('#s1next').focus();
             $('#s1next').onclick = async () => { if (n < ORDRE.length - 1) { n++; question(); } else { const freq = {}; strats.forEach((c) => (freq[c] = (freq[c] || 0) + 1)); await sauver({ phase: Math.max(d.phase || 1, 2), strategies: freq }); continuer(); } };
           };
