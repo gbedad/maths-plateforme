@@ -112,12 +112,14 @@ function tableHTML(t, sens, etat = {}, actif = null) {
     return `<div class="tl-row ${k === actif ? 'actif' : ''} ${e.ok === true ? 'juste' : e.ok === false ? 'faux' : ''}"><span class="tl-calc">${ecrire(sens, t, k)} =</span><span class="tl-box">${e.val ?? ''}</span></div>`;
   }).join('')}</div>`;
 }
-// Points regroupés par paquets de 5 (un espace après la 5e colonne / la 5e rangée) pour faciliter le comptage
+// Points rangés en lignes régulières, chaque rangée posée sur une bande légère (« tant de rangées de tant de points »)
 function pointsSVG(lignes, colonnes) {
-  const s = 22, g = 12, pos = (i) => 10 + i * s + (i >= 5 ? g : 0);
-  const w = pos(colonnes - 1) + 10, h = pos(lignes - 1) + 10;
-  let c = ''; for (let i = 0; i < lignes; i++) for (let j = 0; j < colonnes; j++) c += `<circle cx="${pos(j)}" cy="${pos(i)}" r="7" style="fill:var(--accent)"/>`;
-  return `<svg viewBox="0 0 ${w} ${h}" style="width:${Math.min(w, 420)}px;max-width:100%;height:auto" role="img" aria-label="Nuage de points">${c}</svg>`;
+  const s = 22, pos = (i) => 11 + i * s;
+  const w = pos(colonnes - 1) + 11, h = pos(lignes - 1) + 11;
+  let c = '';
+  for (let i = 0; i < lignes; i++) c += `<rect x="1" y="${pos(i) - 10}" width="${w - 2}" height="20" rx="10" style="fill:color-mix(in srgb,var(--accent) 10%,var(--surface));stroke:color-mix(in srgb,var(--accent) 25%,var(--surface))"/>`;
+  for (let i = 0; i < lignes; i++) for (let j = 0; j < colonnes; j++) c += `<circle cx="${pos(j)}" cy="${pos(i)}" r="7" style="fill:var(--accent)"/>`;
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:${Math.min(w * 1.15, 440)}px;max-width:100%;height:auto" role="img" aria-label="${lignes} rangées de ${colonnes} points">${c}</svg>`;
 }
 // Durée d'affichage : 3 s minimum, puis environ 1 s de plus par tranche de 10 points (8 s au maximum)
 export const dureePoints = (nb) => Math.min(8, Math.max(3, Math.round(1.5 + nb / 10)));
