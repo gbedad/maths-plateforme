@@ -2,7 +2,7 @@
 // creerTable(t) renvoie une notion complète : Explorer en 3 séquences, jeux, entraînement chronométré…
 import { $, $$, rnd, shuffle, esc } from '../outils.js';
 
-const ORDRE_EXPLORER = [0, 1, 10, 2, 5, 3, 4, 11, 8, 6, 7, 9, 12]; // ordre imposé des 13 questions (séquence 1)
+export const ORDRE_EXPLORER = [0, 1, 10, 2, 5, 3, 4, 11, 8, 6, 7, 9, 12]; // ordre imposé des 13 questions (séquence 1)
 const FAITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const COUL_UNITES = ['#e9e1d6', '#d6efd9', '#f6d6de', '#f8ecc9', '#dcdcf6', '#d6ecef', '#efe0f6', '#f3e2d2', '#dfeedd', '#f2d9cf'];
 

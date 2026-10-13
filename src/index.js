@@ -73,7 +73,11 @@ async function route(req, env, url) {
     if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)$/)) && m === 'DELETE') return supprimer(env, 'eleves', +r[1]);
     if ((r = p.match(/^\/api\/prof\/eleves\/(\d+)$/)) && m === 'PATCH') return modifierEleve(req, env, +r[1]);
     if (p === '/api/prof/banque' && m === 'GET') return lireBanque(env);
-    if (p === '/api/prof/banque' && m === 'PUT') { if (!me.admin) throw new HttpError(403, 'Seul le superadmin peut modifier la banque d’exercices.'); return ecrireBanque(req, env); }
+    if (p === '/api/prof/banque' && m === 'PUT') { if (!me.admin) throw new HttpError(403, 'Seul le superadmin peut modifier la banque d’exercices.'); return ecrireBanque(req, env, me); }
+    if (p === '/api/prof/banque/apercu' && m === 'POST') return apercuImport(req, env);
+    if (p === '/api/prof/contenu' && m === 'GET') return contenuCharge(env);
+    if (p === '/api/prof/imports' && m === 'GET') return listerImports(env);
+    if ((r = p.match(/^\/api\/prof\/imports\/(\d+)\/annuler$/)) && m === 'POST') { if (!me.admin) throw new HttpError(403, 'Réservé au superadmin.'); return annulerImport(req, env, +r[1], me); }
     if (p === '/api/prof/signalements' && m === 'GET') return listerSignalements(env, me);
     if ((r = p.match(/^\/api\/prof\/signalements\/(\d+)$/)) && m === 'PATCH') return traiterSignalement(req, env, +r[1]);
   }
@@ -426,24 +430,126 @@ async function lireBanque(env) {
   return json(results.map((r) => ({ ...JSON.parse(r.donnees), updated_at: r.updated_at })));
 }
 
-async function ecrireBanque(req, env) {
-  const { exercices, config } = await body(req);
+/* ---------- Contenu : imports, journal, retour en arrière ----------
+   Chaque import garde, notion par notion, le contenu d'avant et d'après : on peut ainsi
+   voir d'où vient le contenu en ligne et revenir à l'état précédent. */
+let schemaContenuOk = false;
+async function assurerSchemaContenu(env) {
+  if (schemaContenuOk) return;
+  await assurerSchemaProf(env);
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS imports (id INTEGER PRIMARY KEY AUTOINCREMENT, enseignant_id INTEGER, fichier TEXT,
+    resume TEXT, annule_import INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')))`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS imports_notions (import_id INTEGER NOT NULL, notion TEXT NOT NULL,
+    avant TEXT, apres TEXT, statut TEXT, PRIMARY KEY (import_id, notion))`).run();
+  schemaContenuOk = true;
+}
+const stable = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((c) => [c, x[c]])) : x));
+const sansIds = (exos) => [...exos].sort((a, b) => a.numero - b.numero).map(({ updated_at, ...e }) => ({ ...e, variantes: (e.variantes || []).map(({ ligne, id, ...v }) => v) }));
+// Identifiant d'une variante : on garde celui d'avant si la question est identique (la maîtrise des élèves est conservée),
+// sinon un identifiant tiré de son contenu (jamais celui d'une autre question).
+const signature = (v) => stable({ variable: v.variable, generateur: v.generateur, corrige: v.corrige, pourquoi: v.pourquoi, juste: v.juste, texte: v.texte });
+const hash36 = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+function garderIds(nouveaux, anciens) {
+  const parSig = new Map(), pris = new Set();
+  for (const e of anciens) for (const v of e.variantes || []) if (!parSig.has(signature(v))) parSig.set(signature(v), v.id);
+  for (const e of nouveaux) for (const v of e.variantes || []) {
+    const sig = signature(v); let id = parSig.get(sig);
+    if (!id || pris.has(id)) { id = 'v' + hash36(e.notion + '|' + e.numero + '|' + sig); let n = 2; while (pris.has(id)) id = 'v' + hash36(e.notion + '|' + e.numero + '|' + sig) + '-' + n++; }
+    pris.add(id); v.id = id;
+  }
+}
+async function etatNotion(env, notion) {
+  const ex = await env.DB.prepare('SELECT donnees FROM exercices WHERE notion = ? ORDER BY numero').bind(notion).all();
+  const cfg = await env.DB.prepare('SELECT donnees FROM notions_config WHERE notion = ?').bind(notion).first();
+  return { exercices: ex.results.map((r) => JSON.parse(r.donnees)), config: cfg ? JSON.parse(cfg.donnees || '{}') : null };
+}
+// Ce que l'import changerait, notion par notion
+async function comparerImport(env, exercices, config) {
+  const notions = [...new Set([...exercices.map((e) => e.notion), ...Object.keys(config || {})])];
+  const res = {};
+  for (const n of notions) {
+    const avant = await etatNotion(env, n), exN = exercices.filter((e) => e.notion === n), cN = (config || {})[n];
+    garderIds(exN, avant.exercices);
+    const apres = { exercices: exN.length ? exN : avant.exercices, config: cN ? { ...(avant.config || {}), ...cN } : avant.config };
+    const vide = !avant.exercices.length && !avant.config;
+    const memeEx = !exN.length || stable(sansIds(exN)) === stable(sansIds(avant.exercices));
+    const memeCfg = !cN || Object.keys(cN).every((k) => stable(cN[k]) === stable((avant.config || {})[k]));
+    const compte = (e) => ({ exercices: e.exercices.length, questions: e.exercices.reduce((a, x) => a + (x.variantes || []).length, 0), sequence1: (e.config?.sequence1 || []).length, seuil: e.config?.seuilExplorer || null });
+    res[n] = { statut: vide ? 'nouvelle' : memeEx && memeCfg ? 'inchangée' : 'modifiée', avant: compte(avant), apres: compte(apres), _avant: avant, _apres: apres };
+  }
+  return res;
+}
+const publicResume = (res) => Object.fromEntries(Object.entries(res).map(([n, r]) => [n, { statut: r.statut, avant: r.avant, apres: r.apres }]));
+async function apercuImport(req, env) {
+  await assurerSchemaContenu(env);
+  const { exercices = [], config = {} } = await body(req);
+  return json(publicResume(await comparerImport(env, exercices, config)));
+}
+// Remplace le contenu d'une notion (exercices et réglages) par un état complet
+function ecrireEtat(env, notion, etat) {
+  const stmts = [env.DB.prepare('DELETE FROM exercices WHERE notion = ?').bind(notion)];
+  for (const e of etat.exercices || []) stmts.push(env.DB.prepare('INSERT INTO exercices (notion, numero, donnees) VALUES (?, ?, ?)').bind(notion, e.numero, JSON.stringify(e)));
+  stmts.push(etat.config
+    ? env.DB.prepare("INSERT INTO notions_config (notion, donnees, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(notion) DO UPDATE SET donnees = excluded.donnees, updated_at = excluded.updated_at").bind(notion, JSON.stringify(etat.config))
+    : env.DB.prepare('DELETE FROM notions_config WHERE notion = ?').bind(notion));
+  return stmts;
+}
+async function journaliser(env, me, fichier, res, annule = null) {
+  const imp = await env.DB.prepare('INSERT INTO imports (enseignant_id, fichier, resume, annule_import) VALUES (?, ?, ?, ?) RETURNING id')
+    .bind(me.id || null, String(fichier || '').slice(0, 120), JSON.stringify(publicResume(res)), annule).first();
+  const stmts = Object.entries(res).map(([n, r]) => env.DB.prepare('INSERT INTO imports_notions (import_id, notion, avant, apres, statut) VALUES (?, ?, ?, ?, ?)')
+    .bind(imp.id, n, JSON.stringify(r._avant), JSON.stringify(r._apres), r.statut));
+  if (stmts.length) await env.DB.batch(stmts);
+  return imp.id;
+}
+async function ecrireBanque(req, env, me) {
+  await assurerSchemaContenu(env);
+  const { exercices, config, fichier } = await body(req);
   const aConfig = config && typeof config === 'object' && Object.keys(config).length;
   if (!Array.isArray(exercices) || (!exercices.length && !aConfig)) throw new HttpError(400, 'Le fichier ne contient aucun exercice.');
-  const notions = [...new Set(exercices.map((e) => e.notion))];
-  const stmts = notions.map((n) => env.DB.prepare('DELETE FROM exercices WHERE notion = ?').bind(n));
-  for (const e of exercices) {
-    if (!e.notion || !e.numero || !Array.isArray(e.variantes) || !e.variantes.length) throw new HttpError(400, `Exercice incomplet (${e.notion || '?'} n°${e.numero || '?'}).`);
-    stmts.push(env.DB.prepare('INSERT INTO exercices (notion, numero, donnees) VALUES (?, ?, ?)').bind(e.notion, e.numero, JSON.stringify(e)));
+  for (const e of exercices) if (!e.notion || !e.numero || !Array.isArray(e.variantes) || !e.variantes.length) throw new HttpError(400, `Exercice incomplet (${e.notion || '?'} n°${e.numero || '?'}).`);
+  for (const [n, c] of Object.entries(config || {})) if (JSON.stringify(c).length > 60000) throw new HttpError(400, `Réglages trop volumineux pour la notion ${n}.`);
+  const res = await comparerImport(env, exercices, config || {});
+  const changees = Object.entries(res).filter(([, r]) => r.statut !== 'inchangée');
+  const stmts = changees.flatMap(([n, r]) => ecrireEtat(env, n, r._apres));
+  if (stmts.length) await env.DB.batch(stmts);
+  const id = await journaliser(env, me, fichier, res);
+  return json({ ok: true, import: id, notions: publicResume(res), nb: exercices.length, changees: changees.length });
+}
+async function contenuCharge(env) {
+  await assurerSchemaContenu(env);
+  const ex = await env.DB.prepare('SELECT notion, donnees, updated_at FROM exercices ORDER BY notion, numero').all();
+  const cfg = await env.DB.prepare('SELECT notion, donnees, updated_at FROM notions_config').all();
+  const der = await env.DB.prepare(`SELECT n.notion, i.id, i.fichier, i.created_at, i.annule_import, t.prenom || ' ' || t.nom AS auteur FROM imports_notions n JOIN imports i ON i.id = n.import_id
+    LEFT JOIN enseignants t ON t.id = i.enseignant_id WHERE n.statut != 'inchangée' AND i.id = (SELECT MAX(n2.import_id) FROM imports_notions n2 WHERE n2.notion = n.notion AND n2.statut != 'inchangée')`).all();
+  return json({
+    exercices: ex.results.map((r) => ({ ...JSON.parse(r.donnees), updated_at: r.updated_at })),
+    config: Object.fromEntries(cfg.results.map((c) => [c.notion, { ...JSON.parse(c.donnees || '{}'), _maj: c.updated_at }])),
+    dernierImport: Object.fromEntries(der.results.map((d) => [d.notion, d])),
+  });
+}
+async function listerImports(env) {
+  await assurerSchemaContenu(env);
+  const { results } = await env.DB.prepare(`SELECT i.id, i.fichier, i.resume, i.annule_import, i.created_at, t.prenom || ' ' || t.nom AS auteur FROM imports i
+    LEFT JOIN enseignants t ON t.id = i.enseignant_id ORDER BY i.id DESC LIMIT 60`).all();
+  return json(results.map((r) => ({ ...r, resume: JSON.parse(r.resume || '{}') })));
+}
+// Revenir à l'état d'avant un import (toutes ses notions, ou une seule) ; le retour est lui-même journalisé
+async function annulerImport(req, env, id, me) {
+  await assurerSchemaContenu(env);
+  const b = await req.json().catch(() => ({}));
+  const { results } = await env.DB.prepare("SELECT notion, avant FROM imports_notions WHERE import_id = ? AND statut != 'inchangée'").bind(id).all();
+  const lignes = results.filter((r) => !b.notion || r.notion === b.notion);
+  if (!lignes.length) throw new HttpError(400, 'Rien à annuler pour cet import.');
+  const res = {};
+  for (const l of lignes) {
+    const avant = await etatNotion(env, l.notion), cible = JSON.parse(l.avant);
+    const compte = (e) => ({ exercices: e.exercices.length, questions: e.exercices.reduce((a, x) => a + (x.variantes || []).length, 0), sequence1: (e.config?.sequence1 || []).length, seuil: e.config?.seuilExplorer || null });
+    res[l.notion] = { statut: 'modifiée', avant: compte(avant), apres: compte(cible), _avant: avant, _apres: cible };
   }
-  for (const [notion, c] of Object.entries(config && typeof config === 'object' ? config : {})) {
-    // Réglages fusionnés avec ceux déjà enregistrés (seuil d'Explorer, questions des tables…)
-    if (JSON.stringify(c).length > 60000) throw new HttpError(400, `Réglages trop volumineux pour la notion ${notion}.`);
-    stmts.push(env.DB.prepare("INSERT INTO notions_config (notion, donnees, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(notion) DO UPDATE SET donnees = json_patch(notions_config.donnees, excluded.donnees), updated_at = excluded.updated_at")
-      .bind(String(notion).slice(0, 40), JSON.stringify(c)));
-  }
-  await env.DB.batch(stmts);
-  return json({ ok: true, notions, nb: exercices.length });
+  await env.DB.batch(Object.entries(res).flatMap(([n, r]) => ecrireEtat(env, n, r._apres)));
+  const nouvel = await journaliser(env, me, `Retour à l’état d’avant l’import n°${id}`, res, id);
+  return json({ ok: true, import: nouvel, notions: publicResume(res) });
 }
 
 async function listerSignalements(env, me) {

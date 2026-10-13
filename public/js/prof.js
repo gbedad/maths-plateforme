@@ -238,17 +238,63 @@ async function vueFiche(classeId, eleveId, notion, pseudo) {
   } catch (e) { $('#main').innerHTML = `<div class="card">${esc(e.message)}</div>`; }
 }
 
-/* ---------- Banque d'exercices ---------- */
+/* ---------- Banque d'exercices : contenu en ligne, téléchargement, import, journal ---------- */
+const STATUT = { 'inchangée': '<span class="pill">inchangée</span>', 'modifiée': '<span class="pill mid">modifiée</span>', 'nouvelle': '<span class="pill ok">nouvelle</span>' };
+const resumeContenu = (r) => [r.exercices ? `${r.exercices} exercice${r.exercices > 1 ? 's' : ''} · ${r.questions} question${r.questions > 1 ? 's' : ''}` : '', r.sequence1 ? `séquence 1 : ${r.sequence1} question${r.sequence1 > 1 ? 's' : ''}` : '', r.seuil ? `seuil Explorer : ${r.seuil}` : ''].filter(Boolean).join(' · ') || 'contenu par défaut';
+let CONTENU = null;
 async function vueBanque() {
   $('#main').innerHTML = '<div class="loading">Chargement…</div>';
-  let banque = []; try { banque = await api('/api/prof/banque'); } catch (e) { toast(e.message); }
+  let journal = [];
+  try { [CONTENU, journal] = await Promise.all([api('/api/prof/contenu'), api('/api/prof/imports')]); } catch (e) { $('#main').innerHTML = `<div class="card">${esc(e.message)}</div>`; return; }
+  const { exercices, config, dernierImport } = CONTENU;
+  const notions = Object.keys(CATALOGUE);
+  const ligne = (n) => {
+    const ex = exercices.filter((e) => e.notion === n), c = config[n] || {}, d = dernierImport[n], estTable = /^table-\d$/.test(n);
+    const nbQ = ex.reduce((a, e) => a + e.variantes.length, 0);
+    const contenu = [ex.length ? `${ex.length} exercice${ex.length > 1 ? 's' : ''} oui/non · ${nbQ} question${nbQ > 1 ? 's' : ''}` : '', estTable ? `séquence 1 : ${c.sequence1?.length ? `${c.sequence1.length} questions importées` : '13 questions par défaut'}` : '', c.seuilExplorer ? `seuil Explorer : ${c.seuilExplorer}` : ''].filter(Boolean).join('<br>') || '<span class="mini">aucun exercice oui/non</span>';
+    const aContenu = ex.length || c.sequence1?.length || c.seuilExplorer;
+    const source = !aContenu ? `<span class="mini">Contenu par défaut de la plateforme${d ? `<br>rétabli le ${dateFr(d.created_at)}` : ''}</span>`
+      : d ? `Importé le ${dateFr(d.created_at)}${d.auteur ? ` par ${esc(d.auteur)}` : ''}<br><small>${esc(d.fichier || '')}</small>` : `Importé${c._maj ? ` le ${dateFr(c._maj)}` : ''} <small>(avant le journal)</small>`;
+    const voir = ex.length || estTable ? `<button class="btn sm ghost" data-voir="${n}">Voir</button>` : '';
+    return `<tr><td><b>${esc(CATALOGUE[n].titreCourt)}</b><br><small>${esc(CATALOGUE[n].niveau)} · <span style="font-family:var(--f-mono)">${n}</span></small></td><td style="font-size:.85rem">${source}</td><td style="font-size:.85rem">${contenu}</td><td>${voir}</td></tr><tr class="detail" data-detail="${n}" hidden><td colspan="4"></td></tr>`;
+  };
   $('#main').innerHTML = `
-    <div class="head"><div class="eyebrow">Contenu</div><h1>Banque d'exercices</h1><p>${MOI?.admin ? "Les exercices viennent de ton fichier Excel. Une ligne = une variante de question. Importer un fichier remplace les exercices des notions qu'il contient. La banque est commune à tous les enseignants." : "La banque est commune à tous les enseignants. Elle est gérée par l'administrateur de la plateforme."}</p></div>
-    ${MOI?.admin ? '' : '<!--'}<div class="card"><h3>Importer un fichier Excel</h3>
-      <div class="drop"><input type="file" id="xl" accept=".xlsx,.xlsb,.xls" aria-label="Fichier Excel"><p style="margin:8px 0 0;font-size:.85rem">Formats acceptés : .xlsx, .xlsb, .xls. Feuilles lues : « Banque » (ou la première), « Parcours » et « Tables » (questions des tables de multiplication).</p></div>
-      <div id="apercu"></div></div>${MOI?.admin ? '' : '-->'}
-    ${banque.length ? banque.map(tableExercice).join('') : '<div class="card empty">La banque est vide pour l’instant.</div>'}`;
+    <div class="head"><div class="eyebrow">Contenu</div><h1>Banque d'exercices</h1><p>Ce que voient les élèves, notion par notion. La banque est commune à tous les enseignants${MOI?.admin ? ' ; toi seul peux l’importer ou revenir en arrière' : ' et gérée par l’administrateur'}.</p></div>
+    <div class="card"><h3>Télécharger le contenu (Excel)</h3><p class="mini" style="margin:0 0 10px">Le fichier contient exactement ce que voient les élèves (questions importées, ou questions par défaut pour les tables). ${MOI?.admin ? 'Modifie-le puis réimporte-le : seules les notions qu’il contient seront concernées.' : ''}</p>
+      <div class="tables-choix" id="dlNotions"><label class="tc tous"><input type="checkbox" data-dl="tout"><span>Toutes</span></label>${notions.map((n) => `<label class="tc tous"><input type="checkbox" data-dl="${n}"><span>${esc(CATALOGUE[n].titreCourt)}</span></label>`).join('')}</div>
+      <div class="actions" style="margin-top:12px"><button class="btn" id="dlBtn" disabled>Télécharger</button><span class="mini" id="dlInfo">Coche une ou plusieurs notions.</span></div></div>
+    ${MOI?.admin ? `<div class="card"><h3>Importer un fichier Excel</h3>
+      <div class="drop"><input type="file" id="xl" accept=".xlsx,.xlsb,.xls" aria-label="Fichier Excel"><p style="margin:8px 0 0;font-size:.85rem">Feuilles lues : « Banque » (ou la première), « Parcours » et « Tables ». Un aperçu indique, pour chaque notion, ce qui va changer avant l’enregistrement.</p></div>
+      <div id="apercu"></div></div>` : ''}
+    <div class="card"><h3>Contenu en ligne</h3><div class="tbl-wrap"><table><tr><th>Notion</th><th>D’où vient le contenu</th><th>Contenu</th><th></th></tr>${notions.map(ligne).join('')}</table></div></div>
+    <div class="card"><h3>Journal des imports</h3>${journal.length ? `<div class="tbl-wrap"><table><tr><th>Date</th><th>Fichier</th><th>Notions</th><th></th></tr>
+      ${journal.map((j) => { const ch = Object.entries(j.resume).filter(([, r]) => r.statut !== 'inchangée');
+        return `<tr><td style="font-size:.85rem">${dateFr(j.created_at)}<br><small>${esc(j.auteur || '')}</small></td><td style="font-size:.85rem">${esc(j.fichier || '—')}</td>
+        <td style="font-size:.85rem">${Object.entries(j.resume).map(([n, r]) => `${esc(CATALOGUE[n]?.titreCourt || n)} ${STATUT[r.statut] || ''}${r.statut === 'modifiée' ? ` <small>${resumeContenu(r.avant)} → ${resumeContenu(r.apres)}</small>` : ''}`).join('<br>')}</td>
+        <td>${MOI?.admin && ch.length ? `<button class="btn sm ghost" data-annuler="${j.id}">Revenir avant cet import</button>` : ''}</td></tr>`; }).join('')}</table></div>` : '<p class="mini">Aucun import depuis la mise en place du journal.</p>'}</div>`;
+  // Téléchargement
+  const cocher = () => { const sel = $$('#dlNotions [data-dl]:checked').map((c) => c.dataset.dl).filter((x) => x !== 'tout'); $('#dlBtn').disabled = !sel.length; $('#dlInfo').textContent = sel.length ? `${sel.length} notion${sel.length > 1 ? 's' : ''} sélectionnée${sel.length > 1 ? 's' : ''}.` : 'Coche une ou plusieurs notions.'; return sel; };
+  $('#dlNotions').onchange = (e) => { if (e.target.dataset.dl === 'tout') $$('#dlNotions [data-dl]').forEach((c) => (c.checked = e.target.checked)); else $('#dlNotions [data-dl="tout"]').checked = $$('#dlNotions [data-dl]:not([data-dl="tout"])').every((c) => c.checked); cocher(); };
+  $('#dlBtn').onclick = async () => {
+    if (!window.XLSX) { toast('Le module Excel ne s’est pas chargé. Recharge la page.'); return; }
+    const { exporterExcel } = await import('./contenu.js');
+    exporterExcel(window.XLSX, { notions: cocher(), exercices, config, titres: Object.fromEntries(notions.map((n) => [n, CATALOGUE[n].titreCourt])) });
+  };
   $('#xl')?.addEventListener('change', lireFichier);
+  $('#main').onclick = async (e) => {
+    const v = e.target.closest('[data-voir]'), an = e.target.closest('[data-annuler]');
+    if (v) {
+      const n = v.dataset.voir, tr = $(`[data-detail="${n}"]`); tr.hidden = !tr.hidden; v.textContent = tr.hidden ? 'Voir' : 'Masquer';
+      if (!tr.hidden && !tr.firstElementChild.innerHTML) {
+        const { sequence1De } = await import('./contenu.js');
+        const s1 = /^table-\d$/.test(n) ? sequence1De(n, config[n]) : null;
+        tr.firstElementChild.innerHTML = exercices.filter((x) => x.notion === n).map(tableExercice).join('') + (s1 ? tableSeq1(n, s1.questions, s1.source) : '');
+      }
+    }
+    if (an && confirmer(an, 'Cliquer encore pour confirmer')) {
+      try { await api(`/api/prof/imports/${an.dataset.annuler}/annuler`, { method: 'POST', body: {} }); toast('Contenu remis comme avant cet import.'); vueBanque(); } catch (err) { toast(err.message); }
+    }
+  };
 }
 function tableExercice(ex) {
   const n = CATALOGUE[ex.notion];
@@ -260,11 +306,11 @@ function tableExercice(ex) {
       <td>${v.pourquoi.length ? `<ol>${v.pourquoi.map((t, k) => `<li class="${k === v.juste ? 'right' : ''}">${esc(t)}</li>`).join('')}</ol>` : '<small style="color:var(--ink-soft)">Pas de « Pourquoi ? » : oui/non seulement</small>'}</td></tr>`; }).join('')}
     </table></div></div>`;
 }
-function tableSeq1(n, qs) {
+function tableSeq1(n, qs, source = '') {
   const t = +n.split('-')[1];
-  return `<div class="card"><div class="eyebrow">${esc(CATALOGUE[n]?.titreCourt || n)} · Explorer, séquence 1</div>
+  return `<div class="card"><div class="eyebrow">${esc(CATALOGUE[n]?.titreCourt || n)} · Explorer, séquence 1${source ? ` · questions ${source === 'importé' ? 'importées' : 'par défaut'}` : ''}</div>
     <div class="tbl-wrap"><table><tr><th>Ordre</th><th>Calcul</th><th>Pourquoi ? (justes en vert)</th></tr>
-    ${qs.map((q, i) => `<tr><td>${i + 1}</td><td class="m">${t} × ${q.k} = ${t * q.k}</td><td><ol>${q.options.map((o) => `<li class="${o.ok ? 'right' : ''}">${esc(o.texte)}${!o.ok && o.expl ? `<br><small style="color:var(--ink-soft)">Si choisi : ${esc(o.expl)}</small>` : ''}</li>`).join('')}</ol></td></tr>`).join('')}
+    ${qs.map((q, i) => `<tr><td>${i + 1}</td><td class="m">${t} × ${q.k} = ${t * q.k}</td><td><ol>${q.options.map((o) => `<li class="${o.ok ? 'right' : ''}">${esc(o.texte)}${o.expl ? `<br><small style="color:var(--ink-soft)">Si choisi : ${esc(o.expl)}</small>` : ''}</li>`).join('')}</ol></td></tr>`).join('')}
     </table></div></div>`;
 }
 async function lireFichier(e) {
@@ -292,10 +338,27 @@ async function lireFichier(e) {
       ${IMPORT.exercices.map((x) => `${esc(CATALOGUE[x.notion]?.titreCourt || x.notion)} n°${x.numero} : ${x.variantes.length} variantes, ${x.variantes.reduce((a, v) => a + v.occ, 0)} questions par série`).join('<br>')}
       ${inconnues.length ? `<p class="err">Notion inconnue de la plateforme : ${esc(inconnues.join(', '))}. Ces exercices seront enregistrés mais pas affichés.</p>` : ''}
       ${IMPORT.avertissements.length ? `<p style="margin:10px 0 4px;font-weight:600">À vérifier :</p><ul style="margin:0;padding-left:20px">${IMPORT.avertissements.map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>
+      <div class="card apercu-notions" id="apercuNotions"><span class="mini">Comparaison avec le contenu en ligne…</span></div>
       <div class="actions" style="margin-top:12px"><button class="btn" id="saveImport">Enregistrer dans la plateforme</button><button class="btn ghost" id="cancelImport">Annuler</button></div>
       ${IMPORT.exercices.map(tableExercice).join('')}${Object.entries(IMPORT.config).filter(([, c]) => c.sequence1).map(([n, c]) => tableSeq1(n, c.sequence1)).join('')}`;
+    // Tables dont les questions sont exactement celles par défaut (ex. fichier téléchargé puis réimporté) : rien à enregistrer
+    const { sequence1De } = await import('./contenu.js');
+    const st = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((c) => [c, x[c]])) : x));
+    const parDefaut = [];
+    for (const [n, c] of Object.entries(IMPORT.config)) {
+      if (/^table-\d$/.test(n) && c.sequence1 && !CONTENU?.config?.[n]?.sequence1?.length && st(c.sequence1) === st(sequence1De(n, null).questions)) {
+        delete c.sequence1; parDefaut.push(n); if (!Object.keys(c).length) delete IMPORT.config[n];
+      }
+    }
+    try {
+      const ap = await api('/api/prof/banque/apercu', { method: 'POST', body: { exercices: IMPORT.exercices, config: IMPORT.config } });
+      for (const n of parDefaut) ap[n] = ap[n] || { statut: 'inchangée', avant: { sequence1: 13 }, apres: { sequence1: 13 }, defaut: true };
+      $('#apercuNotions').innerHTML = `<h3 style="margin:0 0 8px">Ce qui va changer</h3><div class="tbl-wrap"><table><tr><th>Notion</th><th>État</th><th>En ligne aujourd’hui</th><th>Après l’import</th></tr>${Object.entries(ap).map(([n, r]) => `<tr><td>${esc(CATALOGUE[n]?.titreCourt || n)}</td><td>${STATUT[r.statut]}</td><td style="font-size:.85rem">${r.statut === 'nouvelle' ? '—' : resumeContenu(r.avant)}</td><td style="font-size:.85rem">${resumeContenu(r.apres)}</td></tr>`).join('')}</table></div>`;
+      if (Object.values(ap).every((r) => r.statut === 'inchangée')) $('#saveImport').textContent = 'Rien ne change : enregistrer quand même dans le journal';
+    } catch (err) { $('#apercuNotions').innerHTML = `<p class="err">${esc(err.message)}</p>`; }
     $('#saveImport').addEventListener('click', async () => {
-      try { const r = await api('/api/prof/banque', { method: 'PUT', body: { exercices: IMPORT.exercices, config: IMPORT.config } }); toast(r.nb ? `${r.nb} exercice(s) enregistré(s).` : 'Questions des tables enregistrées.'); IMPORT = null; BANQUE = null; vueBanque(); } catch (err) { toast(err.message); }
+      if (!IMPORT.exercices.length && !Object.keys(IMPORT.config).length) { toast('Rien à enregistrer : ce fichier contient exactement le contenu en ligne.'); IMPORT = null; vueBanque(); return; }
+      try { const r = await api('/api/prof/banque', { method: 'PUT', body: { exercices: IMPORT.exercices, config: IMPORT.config, fichier: f.name } }); toast(r.changees ? `${r.changees} notion(s) mise(s) à jour.` : 'Aucune notion modifiée.'); IMPORT = null; BANQUE = null; vueBanque(); } catch (err) { toast(err.message); }
     });
     $('#cancelImport').addEventListener('click', () => { IMPORT = null; vueBanque(); });
   } catch (err) { out.innerHTML = `<p class="err" style="margin-top:12px">${esc(err.message)}</p>`; }

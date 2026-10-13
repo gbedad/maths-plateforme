@@ -52,7 +52,7 @@ export function htmlToTxt(html) {
 }
 
 // Champs secrets : le bouton « œil » affiche ou masque le contenu
-document.addEventListener('click', (e) => {
+if (typeof document !== 'undefined') document.addEventListener('click', (e) => {
   const b = e.target.closest('.pw-eye'); if (!b) return;
   const inp = b.parentElement.querySelector('input'); const voir = inp.type === 'password';
   inp.type = voir ? 'text' : 'password'; b.setAttribute('aria-pressed', String(voir));
