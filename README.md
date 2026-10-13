@@ -109,6 +109,13 @@ git push                    # déploie
 
 ## Mettre à jour les exercices
 
+**Méthode conseillée (page Banque d'exercices) :**
+1. **Télécharger le contenu** : coche une ou plusieurs notions (ou « Toutes ») → un fichier `contenu_<notion>_<date>.xlsx` avec exactement ce que voient les élèves (questions importées, ou questions par défaut pour les tables).
+2. Modifie le fichier, puis **importe-le** : l'aperçu indique pour chaque notion « inchangée », « modifiée » ou « nouvelle » avant l'enregistrement. Seules les notions présentes dans le fichier sont concernées ; une question inchangée garde son identifiant (la maîtrise des élèves est conservée).
+3. **Contenu en ligne** : pour chaque notion, d'où vient le contenu (fichier, date, auteur, ou contenu par défaut) ; bouton « Voir » pour relire les questions.
+4. **Journal des imports** : chaque import est noté ; « Revenir avant cet import » remet les notions concernées dans leur état précédent (et ce retour est lui-même noté, donc annulable).
+
+
 Deux façons :
 
 - **Depuis le site** : Espace enseignant → Banque d'exercices → Importer un fichier Excel. Un aperçu s'affiche, avec les avertissements (doublons, réponse juste introuvable…), avant l'enregistrement.
