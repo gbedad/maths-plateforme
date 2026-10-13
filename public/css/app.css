@@ -572,7 +572,7 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .calc-bilan .cb.bad{border-color:var(--ko);background:var(--ko-soft);color:var(--ko)}
 .calc-bilan .cb.good,.calc-bilan .cb.good-ghost{border-color:var(--ok);background:var(--ok);color:var(--surface)}
 /* La correction : vert soutenu, quelle que soit la réponse de l'élève */
-.why-verdict,.feedback .corrige{margin-top:12px;padding:12px 16px;border-radius:10px;border:0;border-left:5px solid var(--ok);background:color-mix(in srgb,var(--ok) 30%,var(--surface));color:var(--ink)}
+.why-verdict,.feedback .corrige{margin-top:12px;padding:12px 16px;border-radius:0;border:0;border-left:5px solid var(--ok);background:transparent;color:var(--ink)}
 .why-verdict > b{display:block;font-weight:800}
 .why-verdict.ok > b{color:var(--ok)}
 .why-verdict.ko > b{color:var(--ko)}
