@@ -334,6 +334,9 @@ sup{font-size:.62em;line-height:0}
 #s1fb .choice.bad{border:1.5px solid color-mix(in srgb,var(--ko) 55%,var(--surface));background:color-mix(in srgb,var(--ko) 7%,var(--surface));box-shadow:none;opacity:1}
 #s1fb .choice.good .l{color:var(--ok)} #s1fb .choice.bad .l{color:var(--ko)}
 #s1fb .choice.choisi{border-width:2px}
+#s1fb .choice.essaye{opacity:.55;border-style:dashed;background:var(--surface)}
+#s1fb .choice.essaye .rep-tag{color:var(--ink-soft,#666);font-weight:700}
+#s1fb .deuxieme-chance{margin:10px 0 0;padding:10px 12px;border-left:4px solid #d08a1e;background:color-mix(in srgb,#d08a1e 8%,var(--surface));border-radius:6px;color:var(--ink)}
 #s1fb .choice.choisi .rep-tag{color:var(--ink);font-weight:800}
 #s1why .why-verdict.correction p{margin:0;font-weight:400;color:var(--ink)}
 .nav-prof{display:block;font-weight:400;font-size:.75rem;color:var(--ink-soft)}

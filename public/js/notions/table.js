@@ -206,7 +206,7 @@ function explorerTable(t) {
             <div class="why-title">Pourquoi ?</div><p class="mini" style="margin:-6px 0 8px">Choisis une seule réponse : celle qui explique le mieux <i>comment</i> ${ok ? 'tu as trouvé' : 'on trouve'} le résultat.</p>
             <div class="choices">${opts.map((o, j) => `<button class="choice" data-o="${j}" aria-pressed="false"><span class="l">${'abcd'[j]})</span><span>${esc(o.texte)}</span></button>`).join('')}</div>
             <div class="next" id="s1valBox"><span class="mini" id="s1valMsg">Choisis une explication.</span><button class="btn" id="s1val" disabled>Valider mon explication</button></div><div id="s1why"></div>`;
-          let pick = null;
+          let pick = null, premier = null; // premier : index du 1er essai raté (deuxième chance)
           $('#s1fb').onclick = (ev) => {
             const b = ev.target.closest('[data-o]');
             if (b && !b.disabled) {
@@ -217,16 +217,26 @@ function explorerTable(t) {
             }
             if (ev.target.id !== 's1val' || pick === null) return;
             const o = opts[pick];
-            $('#s1valBox').remove();
+            // Résultat juste mais explication fausse : une deuxième chance, sans montrer la correction
+            if (ok && !o.ok && premier === null) {
+              premier = pick; pick = null;
+              const c = $$('#s1fb .choice')[premier];
+              c.disabled = true; c.classList.remove('sel'); c.removeAttribute('aria-pressed'); c.classList.add('essaye');
+              c.lastElementChild.insertAdjacentHTML('beforeend', '<span class="rep-tag">Ton premier essai</span>');
+              $('#s1val').disabled = true; $('#s1valMsg').textContent = '';
+              $('#s1valBox').insertAdjacentHTML('beforebegin', '<div class="deuxieme-chance" role="status"><b>Ton résultat est juste.</b> Mais cette explication n’est pas la meilleure : essaie une autre réponse.</div>');
+              return;
+            }
+            $('#s1valBox').remove(); $('#s1fb .deuxieme-chance')?.remove();
             $$('#s1fb .choice').forEach((c, j) => {
-              c.disabled = true; c.classList.remove('sel'); c.removeAttribute('aria-pressed');
+              c.disabled = true; c.classList.remove('sel', 'essaye'); c.removeAttribute('aria-pressed');
               const choisi = j === pick, bon = opts[j].ok;
               // Bonnes réponses en vert, mauvaises en rouge ; seule la réponse de l'élève est marquée
               c.classList.add(bon ? 'good' : 'bad');
               if (choisi) { c.classList.add('choisi'); c.lastElementChild.insertAdjacentHTML('beforeend', '<span class="rep-tag">Ton explication</span>'); }
             });
             if (o.ok) strats.push(o.cat);
-            ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: o.ok, choix: o.texte, juste: o.ok ? o.texte : (opts.find((x) => x.ok) || {}).texte, corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
+            ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: o.ok && premier === null, choix: premier === null ? o.texte : `${opts[premier].texte} → 2e essai : ${o.texte}`, juste: o.ok ? o.texte : (opts.find((x) => x.ok) || {}).texte, corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
             // La correction : uniquement l'explication liée au choix de l'élève (« Explication si choisi »), en noir
             const texte = o.ok ? (o.expl || commentaire(o.cat, t, k, sens)) : o.expl;
             $('#s1why').innerHTML = `${texte ? `<div class="why-verdict correction"><p>${esc(texte)}</p></div>` : ''}<div class="next"><button class="btn" id="s1next">${n === ORDRE.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
