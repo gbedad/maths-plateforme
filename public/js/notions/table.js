@@ -224,7 +224,7 @@ function explorerTable(t) {
               c.disabled = true; c.classList.remove('sel'); c.removeAttribute('aria-pressed'); c.classList.add('essaye');
               c.lastElementChild.insertAdjacentHTML('beforeend', '<span class="rep-tag">Ton premier essai</span>');
               $('#s1val').disabled = true; $('#s1valMsg').textContent = '';
-              $('#s1valBox').insertAdjacentHTML('beforebegin', '<div class="deuxieme-chance" role="status"><b>Ton résultat est juste.</b> Mais cette explication n’est pas la meilleure : essaie une autre réponse.</div>');
+              $('#s1valBox').insertAdjacentHTML('beforebegin', '<div class="deuxieme-chance" role="status"><b>Cette explication ne convient pas.</b> Relis les autres et essaie une autre réponse.</div>');
               return;
             }
             $('#s1valBox').remove(); $('#s1fb .deuxieme-chance')?.remove();
