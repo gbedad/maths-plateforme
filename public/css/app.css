@@ -469,6 +469,7 @@ h1 .stars{font-size:1.4rem;vertical-align:middle}
 .tl-row.actif .tl-box{border-color:var(--accent);border-width:2px}
 .tl-row.juste .tl-box,.tl-box.juste{border-color:var(--border);color:var(--ink);background:var(--surface)}
 .tl-row.faux .tl-box{border-color:var(--border);color:var(--ink);background:var(--surface)}
+.eq{white-space:nowrap}
 .tl-x{color:var(--ko);font-weight:800;font-size:1rem;margin-left:2px}
 .tbl-t.lecture .tl-row{grid-template-columns:7.5em 4.5em minmax(0,1fr)}
 .calc-form{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
