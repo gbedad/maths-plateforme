@@ -108,6 +108,8 @@ function questionsSeq1(t, config) {
   };
   return { ordre, options };
 }
+// Une formule (« 8 × 2 = 2 × 8 = 16 ») ne doit jamais être coupée en fin de ligne
+const formules = (html) => html.replace(/\d+(?:[ \u00a0]*[×x÷+−=-][ \u00a0]*\d+)+/g, (m) => `<span class="eq">${m}</span>`);
 function tableHTML(t, sens, etat = {}, actif = null) {
   return `<div class="tbl-t">${FAITS.map((k) => {
     const e = etat[k] || {};
@@ -204,7 +206,7 @@ function explorerTable(t) {
             : `<div class="calc-bilan"><span class="cb bad">✗ Ta réponse : ${v}</span><span class="cb good-ghost">✓ ${ecrire(sens, t, k)} = ${t * k}</span></div>`;
           $('#s1fb').innerHTML = `<div class="feedback"><div class="hand ${ok ? 'ok' : 'ko'}">${ok ? 'Correct' : 'Incorrect'}</div>${bilanCalc}</div>
             <div class="why-title">Pourquoi ?</div><p class="mini" style="margin:-6px 0 8px">Choisis une seule réponse : celle qui explique le mieux <i>comment</i> ${ok ? 'tu as trouvé' : 'on trouve'} le résultat.</p>
-            <div class="choices">${opts.map((o, j) => `<button class="choice" data-o="${j}" aria-pressed="false"><span class="l">${'abcd'[j]})</span><span>${esc(o.texte)}</span></button>`).join('')}</div>
+            <div class="choices">${opts.map((o, j) => `<button class="choice" data-o="${j}" aria-pressed="false"><span class="l">${'abcd'[j]})</span><span>${formules(esc(o.texte))}</span></button>`).join('')}</div>
             <div class="next" id="s1valBox"><span class="mini" id="s1valMsg">Choisis une explication.</span><button class="btn" id="s1val" disabled>Valider mon explication</button></div><div id="s1why"></div>`;
           let pick = null, premier = null; // premier : index du 1er essai raté (deuxième chance)
           $('#s1fb').onclick = (ev) => {
@@ -239,7 +241,7 @@ function explorerTable(t) {
             ctx.reponses('explorer', [{ variante: 'k' + k, libelle: `${k} × ${t}`, question: `${ecrire(sens, t, k)} = ?`, ok1: ok, ok2: o.ok && premier === null, choix: premier === null ? o.texte : `${opts[premier].texte} → 2e essai : ${o.texte}`, juste: o.ok ? o.texte : (opts.find((x) => x.ok) || {}).texte, corrige: `${ecrire(sens, t, k)} = ${t * k}` }]);
             // La correction : uniquement l'explication liée au choix de l'élève (« Explication si choisi »), en noir
             const texte = o.ok ? (o.expl || commentaire(o.cat, t, k, sens)) : o.expl;
-            $('#s1why').innerHTML = `${texte ? `<div class="why-verdict correction"><p>${esc(texte)}</p></div>` : ''}<div class="next"><button class="btn" id="s1next">${n === ORDRE.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
+            $('#s1why').innerHTML = `${texte ? `<div class="why-verdict correction"><p>${formules(esc(texte))}</p></div>` : ''}<div class="next"><button class="btn" id="s1next">${n === ORDRE.length - 1 ? 'Séquence suivante →' : 'Question suivante →'}</button></div>`;
             $('#s1next').focus();
             $('#s1next').onclick = async () => { if (n < ORDRE.length - 1) { n++; question(); } else { const freq = {}; strats.forEach((c) => (freq[c] = (freq[c] || 0) + 1)); await sauver({ phase: Math.max(d.phase || 1, 2), strategies: freq }); continuer(); } };
           };
